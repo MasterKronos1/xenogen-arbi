@@ -1,3 +1,4 @@
+export const runtime = "nodejs";
 import Anthropic from "@anthropic-ai/sdk";
 import { buildSystemPrompt } from "../../../core/arbi";
 import { NextRequest } from "next/server";
