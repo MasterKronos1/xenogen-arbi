@@ -1,6 +1,5 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  serverExternalPackages: ['@anthropic-ai/sdk']
+  serverExternalPackages: ['groq-sdk'],
 }
-
 module.exports = nextConfig
