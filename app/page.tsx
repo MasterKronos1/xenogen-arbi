@@ -35,7 +35,7 @@ const PATHWAY_STAGES = [
 ]
 
 const PLATFORM_LINKS = [
-  { id: 'skills',  label: 'XenoGen Skills',  color: '#00a854', url: 'https://xenogen-skills.vercel.app' },
+  { id: 'skills',  label: 'XenoGen Skills',  color: '#00e5ff', url: 'https://xenogen-skills.vercel.app' },
   { id: 'guuz',    label: 'Guuz Marketplace', color: '#f0c040', url: '#' },
   { id: 'career',  label: 'Career Engine',    color: '#40c4ff', url: '#' },
   { id: 'profile', label: 'My Profile',       color: '#00b8d4', url: '#' },
@@ -55,18 +55,18 @@ const css = `
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
   :root {
-    --bg:        #06100a;
-    --surface:   #0b1a10;
-    --surface2:  #0f2016;
-    --border:    #162a1e;
-    --border2:   #1e3d2a;
-    --text:      #d4e8db;
-    --text-dim:  #5a8a6a;
-    --text-muted:#233d2c;
-    --accent:    #00e676;
-    --btn:       #00a854;
-    --btn-hover: #008f47;
-    --accent-soft:#00a85412;
+    --bg:        #040e14;
+    --surface:   #071520;
+    --surface2:  #0a1c2a;
+    --border:    #102336;
+    --border2:   #1a3a54;
+    --text:      #c8dde8;
+    --text-dim:  #4a6a7a;
+    --text-muted:#1a3040;
+    --accent:    #00e5ff;
+    --btn:       #0097b2;
+    --btn-hover: #007d94;
+    --accent-soft:#00e5ff12;
     --warn:      #f0c040;
     --font-serif:'Playfair Display', Georgia, serif;
     --font-sans: 'Plus Jakarta Sans', system-ui, sans-serif;
@@ -166,7 +166,7 @@ const css = `
     box-shadow: 0 0 8px rgba(0,230,118,0.5);
     animation: nodePulse 2s ease-in-out infinite;
   }
-  @keyframes nodePulse { 0%,100%{box-shadow:0 0 6px rgba(0,230,118,.4)} 50%{box-shadow:0 0 14px rgba(0,230,118,.7)} }
+  @keyframes nodePulse { 0%,100%{box-shadow:0 0 6px rgba(0,229,255,.4)} 50%{box-shadow:0 0 14px rgba(0,229,255,.7)} }
   .pnode-label { font-size: 0.52rem; color: var(--text-muted); font-weight: 500; }
   .pnode.done .pnode-label { color: var(--text-dim); }
   .pnode.current .pnode-label { color: var(--accent); }
@@ -488,12 +488,6 @@ export default function ARBIProduction() {
     ta.style.height = Math.min(ta.scrollHeight, 140) + 'px'
   }
 
-  function startChat(prompt?: string) {
-    setStarted(true)
-    setMessages([{ role: 'assistant', content: ARBI_WELCOME, time: now() }])
-    if (prompt) setTimeout(() => sendMessage(prompt), 300)
-  }
-
   function now() {
     return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
   }
@@ -501,15 +495,21 @@ export default function ARBIProduction() {
   async function sendMessage(text?: string) {
     const msg = text || input.trim()
     if (!msg || streaming) return
-    if (!started) { startChat(msg); return }
+
+    // If not started yet, set started + build initial messages inline
+    // Don't use startChat() — avoids stale state race condition
+    const baseMessages: Message[] = started
+      ? messages
+      : [{ role: 'assistant', content: ARBI_WELCOME, time: now() }]
+
+    if (!started) setStarted(true)
 
     const userMsg: Message = { role: 'user', content: msg, time: now() }
-    const newMsgs = [...messages, userMsg]
-    setMessages(newMsgs)
+    const newMsgs = [...baseMessages, userMsg]
+    setMessages([...newMsgs, { role: 'assistant', content: '', time: now() }])
     setInput('')
     if (textareaRef.current) textareaRef.current.style.height = 'auto'
     setStreaming(true)
-    setMessages(m => [...m, { role: 'assistant', content: '', time: now() }])
 
     try {
       const res = await fetch('/api/chat', {
@@ -682,7 +682,7 @@ export default function ARBIProduction() {
                 </div>
                 <div className="quick-starts">
                   {QUICK_STARTS.map(q => (
-                    <button key={q.title} className="qs-btn" onClick={() => startChat(q.title)}>
+                    <button key={q.title} className="qs-btn" onClick={() => sendMessage(q.title)}>
                       <div className="qs-title">{q.title}</div>
                       <div className="qs-sub">{q.sub}</div>
                     </button>
@@ -734,14 +734,14 @@ export default function ARBIProduction() {
                   onKeyDown={e => {
                     if (e.key === 'Enter' && !e.shiftKey) {
                       e.preventDefault()
-                      started ? sendMessage() : startChat(input.trim())
+                      sendMessage()
                     }
                   }}
                   placeholder="Talk to ARBI..."
                 />
                 <button
                   className="send-btn"
-                  onClick={() => started ? sendMessage() : startChat(input.trim())}
+                  onClick={() => sendMessage()}
                   disabled={streaming || !input.trim()}
                 >
                   <Send size={14}/>
