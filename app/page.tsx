@@ -6,7 +6,15 @@ import {
   ShoppingBag, Briefcase, User, Layers, Send, X,
   Menu, Zap, MoreHorizontal, Clock, ArrowRight, Home
 } from 'lucide-react'
-import { ARBI_WELCOME, ARBI_PRODUCTION_SYSTEM } from './core/arbi'
+const ARBI_WELCOME = `I'm ARBI — your guide through the XenoGenesis pathway.
+
+Wherever you're starting from — whether that's rebuilding from nothing, learning your first skill, or finding your place in the economy — I'm here to walk that road with you.
+
+No judgement. No rush. One step at a time.
+
+Tell me a bit about where you are right now.`
+
+const ARBI_PRODUCTION_SYSTEM = '' // used in route.ts only
 
 type Message = { role: 'user' | 'assistant'; content: string; time?: string }
 type Conversation = { id: string; title: string; preview: string; time: string; stage: string }
