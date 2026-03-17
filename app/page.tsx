@@ -1,27 +1,28 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import {
-  Plus, ChevronRight, Send, X, Menu, Zap,
+  Plus, ChevronRight, Send, Menu, Zap,
   MoreHorizontal, ArrowRight, Mic, MicOff,
   User, Globe, BookOpen, ShoppingBag, Briefcase,
-  Compass,
+  Compass, LogOut, Brain,
 } from 'lucide-react'
+import {
+  getSupabaseClient, getUserConversations, getUserMemory,
+  getOrCreateUser, resolvePathway, getPathwayProgress,
+  type UserProfile, type Memory, type Conversation,
+} from '@/lib/user'
+import { getUser, signOut } from '@/lib/auth'
+import type { User as SupabaseUser } from '@supabase/supabase-js'
 
 // ── ARBI IDENTITY ─────────────────────────────────────────────────
-const ARBI_WELCOME_XENO = `I'm ARBI — your guide through the XenoGenesis pathway.
+const ARBI_WELCOME_XENO = (name?: string | null) =>
+  name
+    ? `Welcome back, ${name}. Ready to keep moving?\n\nWherever we left off — I remember. Tell me what's on your mind.`
+    : `I'm ARBI — your guide through the XenoGenesis pathway.\n\nWherever you're starting from — whether that's rebuilding from nothing, learning your first skill, or finding your place in the economy — I'm here to walk that road with you.\n\nNo judgement. No rush. One step at a time.\n\nTell me a bit about where you are right now.`
 
-Wherever you're starting from — whether that's rebuilding from nothing, learning your first skill, or finding your place in the economy — I'm here to walk that road with you.
-
-No judgement. No rush. One step at a time.
-
-Tell me a bit about where you are right now.`
-
-const ARBI_WELCOME_OPEN = `I'm ARBI — Artificial Biological & Reconnaissance Intelligence.
-
-I'm here to think alongside you — whatever you need. I'm direct, warm, and I won't waste your time.
-
-What's on your mind?`
+const ARBI_WELCOME_OPEN = `I'm ARBI — Artificial Biological & Reconnaissance Intelligence.\n\nI'm here to think alongside you — whatever you need. I'm direct, warm, and I won't waste your time.\n\nWhat's on your mind?`
 
 const SENSING_PHRASES = [
   "Reading your words carefully...",
@@ -37,15 +38,6 @@ const SENSING_PHRASES = [
 // ── TYPES ─────────────────────────────────────────────────────────
 type Mode = 'xeno' | 'open'
 type Message = { role: 'user' | 'assistant'; content: string; time?: string; suggestions?: string[] }
-type SavedConversation = { id: string; title: string; preview: string }
-
-const PATHWAY_STAGES = [
-  { id: 'groundzero', label: 'GroundZero', done: true,  url: 'https://gzbnos.vercel.app' },
-  { id: 'btu',        label: 'BTU',        done: true,  url: 'https://btu-two.vercel.app' },
-  { id: 'skills',     label: 'Skills',     done: false, url: '#', current: true },
-  { id: 'guuz',       label: 'Guuz',       done: false, url: '#' },
-  { id: 'career',     label: 'Career',     done: false, url: '#' },
-]
 
 const PLATFORM_LINKS = [
   { label: 'XenoGen Skills',   color: '#00e5ff', url: 'https://xenogen-skills.vercel.app', icon: <BookOpen size={12}/> },
@@ -53,10 +45,10 @@ const PLATFORM_LINKS = [
   { label: 'Career Engine',    color: '#40c4ff', url: '#', icon: <Briefcase size={12}/> },
 ]
 
-const MOCK_CONVERSATIONS: SavedConversation[] = [
-  { id: 'c1', title: 'Starting my electrical journey', preview: 'We talked about the Foundation Track...' },
-  { id: 'c2', title: 'Understanding SASSA grants',     preview: 'I helped you navigate the system...' },
-  { id: 'c3', title: 'First steps after shelter',      preview: 'You asked about next steps once stable...' },
+const MOCK_CONVERSATIONS: Conversation[] = [
+  { id: 'c1', title: 'Starting my electrical journey', mode: 'xeno', created_at: '' },
+  { id: 'c2', title: 'Understanding SASSA grants',     mode: 'xeno', created_at: '' },
+  { id: 'c3', title: 'First steps after shelter',      mode: 'xeno', created_at: '' },
 ]
 
 // ── MARKDOWN RENDERER ─────────────────────────────────────────────
@@ -79,6 +71,19 @@ function renderMarkdown(text: string): string {
     .replace(/<p><\/p>/g, '')
     .replace(/<p>(<[hup])/g, '$1')
     .replace(/(<\/[hup][^>]*>)<\/p>/g, '$1')
+}
+
+// ── MEMORY LABEL MAP ──────────────────────────────────────────────
+const MEMORY_LABELS: Record<string, string> = {
+  pathway_interest:  'Pathway interest',
+  emotional_state:   'Emotional state',
+  current_stage:     'Current stage',
+  situation:         'Situation',
+  primary_goal:      'Primary goal',
+  onboarding_done:   'Onboarding',
+  occupation_interest: 'Occupation interest',
+  name:              'Name',
+  location:          'Location',
 }
 
 // ── CSS ───────────────────────────────────────────────────────────
@@ -113,24 +118,18 @@ const css = `
   ::selection { background: rgba(0,229,255,.15); color: var(--accent); }
   ::-webkit-scrollbar { width: 3px; } ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
 
-  /* ── LAYOUT ── */
   .shell { display: grid; grid-template-columns: 268px 1fr; height: 100vh; }
   .shell.closed { grid-template-columns: 0 1fr; }
 
-  /* ── SIDEBAR ── */
+  /* SIDEBAR */
   .sidebar { background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; transition: all 0.25s ease; }
   .sb-top { padding: 14px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
-
-  /* ARBI SIGIL */
-  .sigil { width: 32px; height: 32px; flex-shrink: 0; position: relative; cursor: default; }
+  .sigil { width: 32px; height: 32px; flex-shrink: 0; position: relative; }
   .sigil canvas { position: absolute; inset: 0; }
-
   .logo-text { font-family: var(--font-serif); font-weight: 700; font-size: 0.95rem; color: var(--text); flex: 1; letter-spacing: 0.5px; }
-
   .new-btn { width: 28px; height: 28px; background: var(--accent-soft); border: 1px solid rgba(0,229,255,.2); border-radius: var(--r); display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--btn); flex-shrink: 0; transition: all 0.2s; }
   .new-btn:hover { background: rgba(0,229,255,.18); }
 
-  /* MODE TOGGLE */
   .mode-toggle { margin: 12px 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--border); border-radius: var(--r); overflow: hidden; flex-shrink: 0; }
   .mode-btn { padding: 8px 6px; display: flex; align-items: center; justify-content: center; gap: 5px; font-size: 0.68rem; font-weight: 600; letter-spacing: 0.5px; cursor: pointer; border: none; background: var(--surface2); color: var(--text-dim); font-family: var(--font-sans); transition: all 0.2s; }
   .mode-btn.active { background: var(--accent-soft); color: var(--accent); }
@@ -162,9 +161,9 @@ const css = `
   .pnode.current .pnode-label { color: var(--accent); }
   .pconn { width: 8px; height: 1px; background: var(--border); flex-shrink: 0; margin-bottom: 10px; }
 
-  /* CONVS */
+  /* CONVERSATIONS */
   .conv-section { flex: 1; overflow-y: auto; padding: 10px 8px; }
-  .conv-group { font-size: 0.56rem; font-weight: 600; color: var(--text-muted); letter-spacing: 1.5px; text-transform: uppercase; padding: 4px 8px 4px; }
+  .conv-group { font-size: 0.56rem; font-weight: 600; color: var(--text-muted); letter-spacing: 1.5px; text-transform: uppercase; padding: 4px 8px; }
   .conv-item { padding: 8px 10px; border-radius: var(--r); cursor: pointer; transition: background 0.15s; margin-bottom: 1px; }
   .conv-item:hover { background: var(--surface2); }
   .conv-title { font-size: 0.78rem; font-weight: 500; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 2px; }
@@ -177,20 +176,22 @@ const css = `
   .pl-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
   .pl-name { font-size: 0.72rem; font-weight: 500; color: var(--text-dim); flex: 1; }
 
-  /* ── MAIN ── */
-  .main { display: flex; flex-direction: column; overflow: hidden; background: var(--bg); position: relative; }
+  /* SIGN OUT */
+  .signout-btn { margin: 0 8px 12px; padding: 8px 10px; display: flex; align-items: center; gap: 8px; border-radius: var(--r); cursor: pointer; border: none; background: none; font-family: var(--font-sans); color: var(--text-muted); font-size: 0.72rem; width: calc(100% - 16px); transition: all 0.15s; }
+  .signout-btn:hover { background: var(--surface2); color: var(--text-dim); }
+
+  /* MAIN */
+  .main { display: flex; flex-direction: column; overflow: hidden; background: var(--bg); }
 
   /* HEADER */
   .header { height: 54px; display: flex; align-items: center; padding: 0 18px; gap: 12px; border-bottom: 1px solid var(--border); background: rgba(4,14,20,0.95); backdrop-filter: blur(16px); flex-shrink: 0; }
   .menu-btn { width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--text-dim); border: none; background: none; border-radius: var(--r); transition: all 0.15s; }
   .menu-btn:hover { background: var(--surface); color: var(--text); }
-
-  /* HEADER PRESENCE */
   .header-presence { display: flex; align-items: center; gap: 10px; flex: 1; }
   .header-sigil { width: 36px; height: 36px; position: relative; flex-shrink: 0; }
   .header-sigil canvas { position: absolute; inset: 0; }
   .header-name { font-family: var(--font-serif); font-weight: 700; font-size: 1rem; color: var(--text); }
-  .header-sensing { font-size: 0.62rem; color: var(--text-dim); font-style: italic; min-height: 16px; transition: opacity 0.4s; }
+  .header-sensing { font-size: 0.62rem; color: var(--text-dim); font-style: italic; min-height: 16px; }
   .header-right { margin-left: auto; display: flex; gap: 6px; }
   .hbtn { width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--text-dim); border-radius: var(--r); border: none; background: none; transition: all 0.15s; }
   .hbtn:hover { background: var(--surface); color: var(--text); }
@@ -209,6 +210,14 @@ const css = `
   .pstate { text-align: center; }
   .pstate-v { font-family: var(--font-serif); font-weight: 700; font-size: 0.95rem; color: var(--accent); line-height: 1; margin-bottom: 2px; }
   .pstate-l { font-size: 0.48rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; }
+
+  /* OBSERVATIONS PANEL */
+  .obs-panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); padding: 16px; margin: 12px 18px 0; flex-shrink: 0; }
+  .obs-title { font-size: 0.6rem; font-weight: 600; color: var(--text-muted); letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
+  .obs-grid { display: flex; flex-wrap: wrap; gap: 6px; }
+  .obs-tag { padding: 3px 10px; background: var(--accent-soft); border: 1px solid rgba(0,229,255,.15); border-radius: 100px; font-size: 0.64rem; color: var(--text-dim); }
+  .obs-tag span { color: var(--accent); font-weight: 500; }
+  .obs-empty { font-size: 0.72rem; color: var(--text-muted); font-style: italic; }
 
   /* CHAT */
   .chat-area { flex: 1; overflow-y: auto; padding: 20px 18px; display: flex; flex-direction: column; gap: 16px; }
@@ -230,25 +239,19 @@ const css = `
   .msg { display: flex; gap: 10px; animation: mIn 0.22s ease; max-width: 100%; }
   .msg.user { flex-direction: row-reverse; align-self: flex-end; max-width: 74%; }
   @keyframes mIn { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:translateY(0)} }
-
   .msg-av { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; align-self: flex-start; margin-top: 2px; }
   .msg-av.arbi { background: rgba(0,229,255,.08); border: 1.5px solid rgba(0,229,255,.25); }
   .msg-av-orb { width: 9px; height: 9px; border-radius: 50%; background: var(--accent); animation: oPulse 2.5s ease-in-out infinite; }
   @keyframes oPulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.4;transform:scale(0.75)} }
   .msg-av.user { background: var(--surface); border: 1px solid var(--border2); }
-
   .msg-content { display: flex; flex-direction: column; gap: 6px; max-width: 100%; }
-
   .msg-bubble { padding: 11px 15px; border-radius: var(--r-lg); font-size: 0.862rem; line-height: 1.75; }
   .msg-bubble.arbi { background: var(--surface); border: 1px solid var(--border); color: var(--text); border-bottom-left-radius: 4px; }
   .msg-bubble.user { background: rgba(0,229,255,.08); border: 1px solid rgba(0,229,255,.18); color: var(--text); border-bottom-right-radius: 4px; }
-
   .msg-bubble strong { color: var(--text); font-weight: 600; }
   .msg-bubble em { color: var(--text-dim); font-style: italic; }
   .msg-bubble h1,.msg-bubble h2,.msg-bubble h3 { font-family: var(--font-serif); font-weight: 700; color: #e0f0f8; margin: 8px 0 4px; }
-  .msg-bubble h1 { font-size: 1.1rem; }
-  .msg-bubble h2 { font-size: 1rem; }
-  .msg-bubble h3 { font-size: 0.9rem; }
+  .msg-bubble h1{font-size:1.1rem}.msg-bubble h2{font-size:1rem}.msg-bubble h3{font-size:.9rem}
   .msg-bubble ul { padding-left: 18px; margin: 6px 0; }
   .msg-bubble li { margin-bottom: 4px; }
   .msg-bubble code { background: rgba(0,229,255,.08); border: 1px solid rgba(0,229,255,.15); padding: 1px 6px; border-radius: 4px; font-family: var(--font-mono); font-size: 0.8rem; color: var(--accent); }
@@ -256,7 +259,6 @@ const css = `
   .msg-bubble pre code { background: none; border: none; padding: 0; font-size: 0.78rem; color: var(--text-dim); }
   .msg-bubble p { margin-bottom: 6px; }
   .msg-bubble p:last-child { margin-bottom: 0; }
-
   .msg-time { font-size: 0.58rem; color: var(--text-muted); padding: 0 3px; }
 
   /* SUGGESTIONS */
@@ -282,7 +284,6 @@ const css = `
   textarea::placeholder { color: var(--text-muted); }
   .input-btns { display: flex; gap: 5px; flex-shrink: 0; }
   .mic-btn { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border: 1px solid var(--border); background: none; border-radius: var(--r); cursor: pointer; color: var(--text-dim); transition: all 0.2s; }
-  .mic-btn:hover { border-color: var(--border2); color: var(--text); }
   .mic-btn.recording { border-color: #e55039; color: #e55039; background: rgba(229,80,57,.08); animation: micPulse 1s ease-in-out infinite; }
   @keyframes micPulse { 0%,100%{box-shadow:0 0 0 0 rgba(229,80,57,.3)} 50%{box-shadow:0 0 0 4px rgba(229,80,57,0)} }
   .send-btn { width: 32px; height: 32px; background: var(--btn); color: #fff; border: none; border-radius: var(--r); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; flex-shrink: 0; }
@@ -290,228 +291,153 @@ const css = `
   .send-btn:disabled { opacity: 0.3; cursor: not-allowed; }
   .input-hint { font-size: 0.6rem; color: var(--text-muted); text-align: center; margin-top: 7px; }
 
+  /* LOADING */
+  .loading-shell { height: 100vh; display: flex; align-items: center; justify-content: center; background: var(--bg); }
+  .loading-orb { width: 40px; height: 40px; border-radius: 50%; border: 2px solid var(--border); border-top-color: var(--accent); animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
   @media(max-width:680px){
-    .shell { grid-template-columns: 0 1fr; }
-    .shell.closed { grid-template-columns: 0 1fr; }
+    .shell,.shell.closed { grid-template-columns: 0 1fr; }
     .qs-grid { grid-template-columns: 1fr; }
     .presence-panel { display: none; }
+    .obs-panel { display: none; }
   }
 `
 
-// ── BIOLOGICAL SIGIL RENDERER ─────────────────────────────────────
-function drawSigil(
-  canvas: HTMLCanvasElement,
-  time: number,
-  streaming: boolean,
-  size: 'sm' | 'lg'
-) {
+// ── SIGIL & PRESENCE RENDERERS ────────────────────────────────────
+function drawSigil(canvas: HTMLCanvasElement, time: number, streaming: boolean, size: 'sm' | 'lg') {
   const ctx = canvas.getContext('2d')
   if (!ctx) return
-  const w = canvas.width
-  const h = canvas.height
+  const w = canvas.width, h = canvas.height
   ctx.clearRect(0, 0, w, h)
-
-  const cx = w / 2
-  const cy = h / 2
+  const cx = w / 2, cy = h / 2
   const baseR = size === 'lg' ? w * 0.28 : w * 0.32
   const speed = streaming ? 2.5 : 1
-
   const breathR = baseR + Math.sin(time * 0.001 * speed) * (size === 'lg' ? 8 : 4)
-  ctx.beginPath()
-  ctx.arc(cx, cy, breathR, 0, Math.PI * 2)
-  ctx.strokeStyle = `rgba(0,229,255,${0.12 + Math.sin(time * 0.001) * 0.06})`
-  ctx.lineWidth = 0.8
-  ctx.stroke()
 
-  ctx.beginPath()
-  ctx.arc(cx, cy, breathR * 0.72, 0, Math.PI * 2)
-  ctx.strokeStyle = `rgba(0,229,255,${0.18 + Math.sin(time * 0.0015) * 0.08})`
-  ctx.lineWidth = 0.6
-  ctx.stroke()
+  ctx.beginPath(); ctx.arc(cx, cy, breathR, 0, Math.PI * 2)
+  ctx.strokeStyle = `rgba(0,229,255,${0.12 + Math.sin(time * 0.001) * 0.06})`; ctx.lineWidth = 0.8; ctx.stroke()
 
-  ctx.save()
-  ctx.translate(cx, cy)
-  ctx.rotate(time * 0.0003 * speed)
+  ctx.beginPath(); ctx.arc(cx, cy, breathR * 0.72, 0, Math.PI * 2)
+  ctx.strokeStyle = `rgba(0,229,255,${0.18 + Math.sin(time * 0.0015) * 0.08})`; ctx.lineWidth = 0.6; ctx.stroke()
+
+  ctx.save(); ctx.translate(cx, cy); ctx.rotate(time * 0.0003 * speed)
   const coreR = baseR * 0.42
   for (let t = 0; t < 3; t++) {
-    ctx.save()
-    ctx.rotate((t / 3) * Math.PI * 2)
-    ctx.beginPath()
+    ctx.save(); ctx.rotate((t / 3) * Math.PI * 2); ctx.beginPath()
     for (let i = 0; i <= 3; i++) {
       const a = (i / 3) * Math.PI * 2 - Math.PI / 2
       const r = coreR * (0.8 + Math.sin(time * 0.002 + t) * 0.1)
-      i === 0 ? ctx.moveTo(Math.cos(a) * r, Math.sin(a) * r)
-               : ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r)
+      i === 0 ? ctx.moveTo(Math.cos(a)*r, Math.sin(a)*r) : ctx.lineTo(Math.cos(a)*r, Math.sin(a)*r)
     }
-    ctx.strokeStyle = `rgba(0,229,255,${0.25 + t * 0.08})`
-    ctx.lineWidth = 0.7
-    ctx.stroke()
-    ctx.restore()
+    ctx.strokeStyle = `rgba(0,229,255,${0.25 + t * 0.08})`; ctx.lineWidth = 0.7; ctx.stroke(); ctx.restore()
   }
-
   ctx.rotate(-time * 0.0005 * speed)
-  const innerR = coreR * 0.55
-  ctx.beginPath()
+  const innerR = coreR * 0.55; ctx.beginPath()
   for (let i = 0; i <= 6; i++) {
     const a = (i / 6) * Math.PI * 2 - Math.PI / 2
     const r = innerR * (0.85 + Math.sin(time * 0.003 + i) * 0.12)
-    i === 0 ? ctx.moveTo(Math.cos(a) * r, Math.sin(a) * r)
-             : ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r)
+    i === 0 ? ctx.moveTo(Math.cos(a)*r, Math.sin(a)*r) : ctx.lineTo(Math.cos(a)*r, Math.sin(a)*r)
   }
-  ctx.strokeStyle = `rgba(0,229,255,0.4)`
-  ctx.lineWidth = 0.6
-  ctx.stroke()
-  ctx.restore()
+  ctx.strokeStyle = `rgba(0,229,255,0.4)`; ctx.lineWidth = 0.6; ctx.stroke(); ctx.restore()
 
-  const numParticles = size === 'lg' ? 12 : 6
-  for (let i = 0; i < numParticles; i++) {
-    const angle = (i / numParticles) * Math.PI * 2 + time * 0.0004 * speed
+  const numP = size === 'lg' ? 12 : 6
+  for (let i = 0; i < numP; i++) {
+    const angle = (i / numP) * Math.PI * 2 + time * 0.0004 * speed
     const dist = breathR * (0.55 + Math.sin(time * 0.002 + i * 1.3) * 0.3)
-    const px = cx + Math.cos(angle) * dist
-    const py = cy + Math.sin(angle) * dist
     const pr = 0.8 + Math.sin(time * 0.003 + i) * 0.5
-    ctx.beginPath()
-    ctx.arc(px, py, pr, 0, Math.PI * 2)
-    ctx.fillStyle = `rgba(0,229,255,${0.4 + Math.sin(time * 0.002 + i) * 0.3})`
-    ctx.fill()
+    ctx.beginPath(); ctx.arc(cx + Math.cos(angle)*dist, cy + Math.sin(angle)*dist, pr, 0, Math.PI*2)
+    ctx.fillStyle = `rgba(0,229,255,${0.4 + Math.sin(time*0.002+i)*0.3})`; ctx.fill()
   }
 
-  const coreAlpha = 0.6 + Math.sin(time * 0.002 * speed) * 0.3
   const corePR = (size === 'lg' ? 4 : 2.5) + Math.sin(time * 0.002 * speed) * 1.5
-  ctx.beginPath()
-  ctx.arc(cx, cy, corePR, 0, Math.PI * 2)
-  ctx.fillStyle = `rgba(0,229,255,${coreAlpha})`
-  ctx.fill()
+  ctx.beginPath(); ctx.arc(cx, cy, corePR, 0, Math.PI * 2)
+  ctx.fillStyle = `rgba(0,229,255,${0.6 + Math.sin(time*0.002*speed)*0.3})`; ctx.fill()
 }
 
-// ── BIOLOGICAL PRESENCE VISUALIZATION ────────────────────────────
-function drawPresence(
-  canvas: HTMLCanvasElement,
-  time: number,
-  streaming: boolean,
-  presenceState: { breath: number; resonance: number; depth: number }
-) {
+function drawPresence(canvas: HTMLCanvasElement, time: number, streaming: boolean, ps: { breath: number; resonance: number; depth: number }) {
   const ctx = canvas.getContext('2d')
   if (!ctx) return
-  const w = canvas.width
-  const h = canvas.height
+  const w = canvas.width, h = canvas.height
   ctx.clearRect(0, 0, w, h)
-
   const speed = streaming ? 2 : 1
-  const { breath, resonance, depth } = presenceState
+  const cx = w / 2, cy = h / 2
 
-  const cx = w / 2
-  const cy = h / 2
   for (let ring = 0; ring < 4; ring++) {
     const phase = time * 0.0008 * speed + ring * 0.8
-    const r = (40 + ring * 30) * (0.85 + Math.sin(phase) * 0.15) * (0.7 + breath * 0.3)
-    const alpha = (0.06 - ring * 0.012) * (0.5 + resonance * 0.5)
-    ctx.beginPath()
-    ctx.ellipse(cx, cy, r * 1.8, r * 0.6, 0, 0, Math.PI * 2)
-    ctx.strokeStyle = `rgba(0,229,255,${alpha})`
-    ctx.lineWidth = 1
-    ctx.stroke()
+    const r = (40 + ring * 30) * (0.85 + Math.sin(phase) * 0.15) * (0.7 + ps.breath * 0.3)
+    ctx.beginPath(); ctx.ellipse(cx, cy, r * 1.8, r * 0.6, 0, 0, Math.PI * 2)
+    ctx.strokeStyle = `rgba(0,229,255,${(0.06 - ring * 0.012) * (0.5 + ps.resonance * 0.5)})`; ctx.lineWidth = 1; ctx.stroke()
   }
 
   ctx.beginPath()
   for (let x = 0; x < w; x++) {
     const nx = x / w
-    const y = cy
-      + Math.sin(nx * 8 * Math.PI + time * 0.002 * speed) * (14 * resonance)
-      + Math.sin(nx * 18 * Math.PI + time * 0.003 * speed) * (6 * depth)
-      + Math.sin(nx * 3 * Math.PI + time * 0.001 * speed) * (20 * breath)
+    const y = cy + Math.sin(nx*8*Math.PI+time*0.002*speed)*(14*ps.resonance) + Math.sin(nx*18*Math.PI+time*0.003*speed)*(6*ps.depth) + Math.sin(nx*3*Math.PI+time*0.001*speed)*(20*ps.breath)
     x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)
   }
-  ctx.strokeStyle = `rgba(0,229,255,${0.25 + resonance * 0.15})`
-  ctx.lineWidth = 1
-  ctx.stroke()
-
-  ctx.beginPath()
-  for (let x = 0; x < w; x++) {
-    const nx = x / w
-    const y = cy
-      + Math.sin(nx * 12 * Math.PI + time * 0.0025 * speed + 1) * (8 * resonance)
-      + Math.sin(nx * 5 * Math.PI + time * 0.0015 * speed + 2) * (15 * breath)
-    x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)
-  }
-  ctx.strokeStyle = `rgba(0,151,178,${0.15 + depth * 0.1})`
-  ctx.lineWidth = 0.7
-  ctx.stroke()
+  ctx.strokeStyle = `rgba(0,229,255,${0.25+ps.resonance*0.15})`; ctx.lineWidth = 1; ctx.stroke()
 
   for (let i = 0; i < 18; i++) {
-    const px = (Math.sin(i * 2.4 + time * 0.0003 * speed) * 0.5 + 0.5) * w
-    const py = (Math.cos(i * 1.7 + time * 0.0004 * speed) * 0.5 + 0.5) * h
-    const pr = 0.7 + Math.sin(time * 0.003 + i) * 0.5
-    const alpha = 0.2 + Math.sin(time * 0.002 + i * 1.2) * 0.15
-    ctx.beginPath()
-    ctx.arc(px, py, pr, 0, Math.PI * 2)
-    ctx.fillStyle = `rgba(0,229,255,${alpha})`
-    ctx.fill()
+    const px = (Math.sin(i*2.4+time*0.0003*speed)*0.5+0.5)*w
+    const py = (Math.cos(i*1.7+time*0.0004*speed)*0.5+0.5)*h
+    ctx.beginPath(); ctx.arc(px, py, 0.7+Math.sin(time*0.003+i)*0.5, 0, Math.PI*2)
+    ctx.fillStyle = `rgba(0,229,255,${0.2+Math.sin(time*0.002+i*1.2)*0.15})`; ctx.fill()
   }
 }
 
 // ── COMPONENT ────────────────────────────────────────────────────
 export default function ARBIProduction() {
-  const [mode, setMode] = useState<Mode>('xeno')
+  const [mode, setMode]               = useState<Mode>('xeno')
   const [sidebarOpen, setSidebarOpen] = useState(true)
-  const [messages, setMessages] = useState<Message[]>([])
-  const [input, setInput] = useState('')
-  const [streaming, setStreaming] = useState(false)
-  const [started, setStarted] = useState(false)
+  const [messages, setMessages]       = useState<Message[]>([])
+  const [input, setInput]             = useState('')
+  const [streaming, setStreaming]     = useState(false)
+  const [started, setStarted]         = useState(false)
   const [sensingText, setSensingText] = useState('')
-  const [recording, setRecording] = useState(false)
+  const [recording, setRecording]     = useState(false)
+  const [showObs, setShowObs]         = useState(false)
   const [presenceState, setPresenceState] = useState({ breath: 0.6, resonance: 0.7, depth: 0.5 })
 
-  // ── MEMORY / PERSISTENCE STATE ────────────────────────────────
-  const [userId] = useState<string>(() => {
-    if (typeof window === 'undefined') return 'xg_' + Math.random().toString(36).slice(2, 9)
-    const stored = localStorage.getItem('arbi_user_id')
-    if (stored) return stored
-    const id = 'xg_' + Math.random().toString(36).slice(2, 9)
-    localStorage.setItem('arbi_user_id', id)
-    return id
-  })
+  // Auth + user data
+  const [authUser, setAuthUser]             = useState<SupabaseUser | null>(null)
+  const [profile, setProfile]               = useState<UserProfile | null>(null)
+  const [memories, setMemories]             = useState<Memory[]>([])
+  const [conversations, setConversations]   = useState<Conversation[]>([])
   const [conversationId, setConversationId] = useState<string | null>(null)
-  const [savedConversations, setSavedConversations] = useState<SavedConversation[]>([])
+  const [authLoading, setAuthLoading]       = useState(true)
 
-  const endRef = useRef<HTMLDivElement>(null)
+  const router      = useRouter()
+  const endRef      = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const animRef = useRef<number>(0)
-
-  // Canvas refs
-  const sigilSbRef = useRef<HTMLCanvasElement>(null)
-  const sigilHdRef = useRef<HTMLCanvasElement>(null)
-  const sigilWlRef = useRef<HTMLCanvasElement>(null)
+  const animRef     = useRef<number>(0)
+  const sigilSbRef  = useRef<HTMLCanvasElement>(null)
+  const sigilHdRef  = useRef<HTMLCanvasElement>(null)
+  const sigilWlRef  = useRef<HTMLCanvasElement>(null)
   const presenceRef = useRef<HTMLCanvasElement>(null)
 
-  // ── LOAD REAL CONVERSATIONS FROM SUPABASE ─────────────────────
+  // ── LOAD AUTH + USER DATA ─────────────────────────────────────
   useEffect(() => {
-    async function loadConversations() {
-      try {
-        const { createClient } = await import('@supabase/supabase-js')
-        const supabase = createClient(
-          process.env.NEXT_PUBLIC_SUPABASE_URL!,
-          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-        )
-        const { data } = await supabase
-          .from('conversations')
-          .select('id, title, created_at')
-          .eq('user_id', userId)
-          .order('created_at', { ascending: false })
-          .limit(10)
-        if (data && data.length > 0) {
-          setSavedConversations(data.map((c: { id: string; title: string }) => ({
-            id: c.id,
-            title: c.title,
-            preview: 'Tap to continue...',
-          })))
-        }
-      } catch {
-        // Silently fall back to mock data if Supabase not available
+    async function init() {
+      const user = await getUser()
+      if (!user) {
+        router.replace('/auth')
+        return
       }
+      setAuthUser(user)
+      const supabase = getSupabaseClient()
+      const [userProfile, userMemories, userConversations] = await Promise.all([
+        getOrCreateUser(supabase, user.id),
+        getUserMemory(supabase, user.id),
+        getUserConversations(supabase, user.id),
+      ])
+      setProfile(userProfile)
+      setMemories(userMemories)
+      setConversations(userConversations)
+      setAuthLoading(false)
     }
-    loadConversations()
-  }, [userId])
+    init()
+  }, [router])
 
   // ── ANIMATION LOOP ────────────────────────────────────────────
   useEffect(() => {
@@ -528,25 +454,21 @@ export default function ARBIProduction() {
     return () => cancelAnimationFrame(animRef.current)
   }, [streaming, presenceState])
 
-  // ── PRESENCE DRIFT ────────────────────────────────────────────
   useEffect(() => {
     const id = setInterval(() => {
       setPresenceState(p => ({
-        breath:    Math.max(0.3, Math.min(0.95, p.breath    + (Math.random() - 0.5) * 0.08)),
-        resonance: Math.max(0.3, Math.min(0.95, p.resonance + (Math.random() - 0.5) * 0.06)),
-        depth:     Math.max(0.2, Math.min(0.9,  p.depth     + (Math.random() - 0.5) * 0.05)),
+        breath:    Math.max(0.3, Math.min(0.95, p.breath    + (Math.random()-0.5)*0.08)),
+        resonance: Math.max(0.3, Math.min(0.95, p.resonance + (Math.random()-0.5)*0.06)),
+        depth:     Math.max(0.2, Math.min(0.9,  p.depth     + (Math.random()-0.5)*0.05)),
       }))
     }, 2000)
     return () => clearInterval(id)
   }, [])
 
-  // ── SENSING PHRASE ROTATION ───────────────────────────────────
   useEffect(() => {
     if (!streaming) { setSensingText(''); return }
     setSensingText(SENSING_PHRASES[Math.floor(Math.random() * SENSING_PHRASES.length)])
-    const id = setInterval(() => {
-      setSensingText(SENSING_PHRASES[Math.floor(Math.random() * SENSING_PHRASES.length)])
-    }, 2800)
+    const id = setInterval(() => setSensingText(SENSING_PHRASES[Math.floor(Math.random() * SENSING_PHRASES.length)]), 2800)
     return () => clearInterval(id)
   }, [streaming])
 
@@ -559,22 +481,21 @@ export default function ARBIProduction() {
     ta.style.height = Math.min(ta.scrollHeight, 130) + 'px'
   }
 
-  function now() {
-    return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  function now() { return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }
+
+  function generateSuggestions(response: string, m: Mode): string[] {
+    if (m === 'xeno') {
+      if (response.toLowerCase().includes('skill') || response.toLowerCase().includes('learn')) return ['Tell me more', 'How do I enrol?', 'What comes after?']
+      if (response.toLowerCase().includes('grant') || response.toLowerCase().includes('sassa')) return ['What do I need?', 'How long does it take?', 'What else am I entitled to?']
+      if (response.toLowerCase().includes('work')  || response.toLowerCase().includes('job'))   return ['Show me opportunities', 'What skills do I need?', 'How do I apply?']
+      return ['Tell me more', "What's my next step?", 'How does this work?']
+    }
+    return ['Go deeper', 'Give me an example', "What's the other side?"]
   }
 
-  function generateSuggestions(response: string, currentMode: Mode): string[] {
-    if (currentMode === 'xeno') {
-      if (response.toLowerCase().includes('skill') || response.toLowerCase().includes('learn'))
-        return ['Tell me more', 'How do I enrol?', 'What comes after?']
-      if (response.toLowerCase().includes('grant') || response.toLowerCase().includes('sassa'))
-        return ['What do I need?', 'How long does it take?', 'What else am I entitled to?']
-      if (response.toLowerCase().includes('work') || response.toLowerCase().includes('job'))
-        return ['Show me opportunities', 'What skills do I need?', 'How do I apply?']
-      return ['Tell me more', "What's my next step?", 'How does this work?']
-    } else {
-      return ['Go deeper', 'Give me an example', "What's the other side?"]
-    }
+  async function handleSignOut() {
+    await signOut()
+    router.replace('/auth')
   }
 
   // ── SEND MESSAGE ──────────────────────────────────────────────
@@ -584,10 +505,9 @@ export default function ARBIProduction() {
 
     const baseMessages: Message[] = started
       ? messages
-      : [{ role: 'assistant', content: mode === 'xeno' ? ARBI_WELCOME_XENO : ARBI_WELCOME_OPEN, time: now() }]
+      : [{ role: 'assistant', content: mode === 'xeno' ? ARBI_WELCOME_XENO(profile?.name) : ARBI_WELCOME_OPEN, time: now() }]
 
     if (!started) setStarted(true)
-
     const userMsg: Message = { role: 'user', content: msg, time: now() }
     const newMsgs = [...baseMessages, userMsg]
     setMessages([...newMsgs, { role: 'assistant', content: '', time: now() }])
@@ -603,22 +523,21 @@ export default function ARBIProduction() {
         body: JSON.stringify({
           messages: newMsgs.map(m => ({ role: m.role, content: m.content })),
           mode,
-          userId,
+          userId: authUser?.id || 'anonymous',
           conversationId,
         }),
       })
 
-      // Capture conversation ID from response header for subsequent messages
       const newConvId = res.headers.get('X-Conversation-Id')
       if (newConvId && !conversationId) {
         setConversationId(newConvId)
-        // Add new conversation to sidebar instantly
         const firstMsg = newMsgs.find(m => m.role === 'user')
         if (firstMsg) {
-          setSavedConversations(prev => [{
+          setConversations(prev => [{
             id: newConvId,
             title: firstMsg.content.slice(0, 60),
-            preview: 'Just started...',
+            mode,
+            created_at: new Date().toISOString(),
           }, ...prev])
         }
       }
@@ -630,37 +549,29 @@ export default function ARBIProduction() {
       while (true) {
         const { done, value } = await reader.read()
         if (done) break
-        const chunk = dec.decode(value)
-        fullResponse += chunk
-        setMessages(m => {
-          const c = [...m]
-          c[c.length - 1] = { ...c[c.length - 1], content: fullResponse }
-          return c
-        })
+        fullResponse += dec.decode(value)
+        setMessages(m => { const c=[...m]; c[c.length-1]={...c[c.length-1],content:fullResponse}; return c })
       }
-
       const suggestions = generateSuggestions(fullResponse, mode)
-      setMessages(m => {
-        const c = [...m]
-        c[c.length - 1] = { ...c[c.length - 1], suggestions }
-        return c
-      })
+      setMessages(m => { const c=[...m]; c[c.length-1]={...c[c.length-1],suggestions}; return c })
+
+      // Refresh memories after response
+      if (authUser) {
+        const supabase = getSupabaseClient()
+        const fresh = await getUserMemory(supabase, authUser.id)
+        setMemories(fresh)
+      }
     } catch {
-      setMessages(m => {
-        const c = [...m]
-        c[c.length - 1] = { ...c[c.length - 1], content: 'Connection lost. Please try again.' }
-        return c
-      })
+      setMessages(m => { const c=[...m]; c[c.length-1]={...c[c.length-1],content:'Connection lost. Please try again.'}; return c })
     } finally {
       setStreaming(false)
       setPresenceState({ breath: 0.6, resonance: 0.7, depth: 0.5 })
     }
   }
 
-  // ── VOICE INPUT ───────────────────────────────────────────────
   function toggleRecording() {
     if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
-      alert('Voice input not supported in this browser. Try Chrome.')
+      alert('Voice input not supported. Try Chrome.')
       return
     }
     if (recording) { setRecording(false); return }
@@ -669,11 +580,7 @@ export default function ARBIProduction() {
     recognition.lang = 'en-ZA'
     recognition.continuous = false
     recognition.interimResults = false
-    recognition.onresult = (e: any) => {
-      const transcript = e.results[0][0].transcript
-      setInput(prev => prev + transcript)
-      setRecording(false)
-    }
+    recognition.onresult = (e: any) => { setInput(p => p + e.results[0][0].transcript); setRecording(false) }
     recognition.onerror = () => setRecording(false)
     recognition.onend = () => setRecording(false)
     recognition.start()
@@ -681,20 +588,25 @@ export default function ARBIProduction() {
   }
 
   function switchMode(newMode: Mode) {
-    setMode(newMode)
-    setStarted(false)
-    setMessages([])
-    setInput('')
-    setConversationId(null)
+    setMode(newMode); setStarted(false); setMessages([]); setInput(''); setConversationId(null)
   }
+
+  // Derived values
+  const pathway  = resolvePathway(profile?.stage || 'groundzero')
+  const progress = getPathwayProgress(profile?.stage || 'groundzero')
+  const currentStage = pathway.find(s => s.current)
+  const displayConversations = conversations.length > 0 ? conversations : MOCK_CONVERSATIONS
+
+  const presenceLabel  = streaming ? 'Deeply present'   : presenceState.breath     > 0.75 ? 'Fully attentive'  : 'Present and ready'
+  const resonanceLabel = streaming ? 'Thinking clearly' : presenceState.resonance  > 0.7  ? 'Sharp and clear'  : 'Calm and clear'
+  const depthLabel     = streaming ? 'Attuned to you'   : presenceState.depth      > 0.65 ? 'Listening deeply' : 'Open and listening'
 
   const QUICK_XENO = [
     { title: "I don't know where to start", sub: "Let ARBI assess your situation" },
     { title: "I need help with a grant",     sub: "Navigate SASSA and programs" },
-    { title: "I want to learn a skill",       sub: "Find the right learning track" },
-    { title: "I'm looking for work",          sub: "Match to opportunities" },
+    { title: "I want to learn a skill",      sub: "Find the right learning track" },
+    { title: "I'm looking for work",         sub: "Match to opportunities" },
   ]
-
   const QUICK_OPEN = [
     { title: "Help me think through something", sub: "Strategy, ideas, decisions" },
     { title: "Explain something complex",        sub: "Plain language, real depth" },
@@ -702,13 +614,15 @@ export default function ARBIProduction() {
     { title: "Let's build something",            sub: "Code, systems, structure" },
   ]
 
-  const presenceLabel  = streaming ? 'Deeply present'   : presenceState.breath     > 0.75 ? 'Fully attentive'  : 'Present and ready'
-  const resonanceLabel = streaming ? 'Thinking clearly' : presenceState.resonance  > 0.7  ? 'Sharp and clear'  : 'Calm and clear'
-  const depthLabel     = streaming ? 'Attuned to you'   : presenceState.depth      > 0.65 ? 'Listening deeply' : 'Open and listening'
+  if (authLoading) {
+    return (
+      <>
+        <style dangerouslySetInnerHTML={{ __html: css }} />
+        <div className="loading-shell"><div className="loading-orb"/></div>
+      </>
+    )
+  }
 
-  const displayConversations = savedConversations.length > 0 ? savedConversations : MOCK_CONVERSATIONS
-
-  // ── RENDER ────────────────────────────────────────────────────
   return (
     <>
       <style dangerouslySetInnerHTML={{ __html: css }} />
@@ -717,91 +631,66 @@ export default function ARBIProduction() {
         {/* ── SIDEBAR ── */}
         <div className="sidebar">
           <div className="sb-top">
-            <div className="sigil">
-              <canvas ref={sigilSbRef} width={32} height={32}/>
-            </div>
+            <div className="sigil"><canvas ref={sigilSbRef} width={32} height={32}/></div>
             <span className="logo-text">ARBI</span>
-            <button
-              className="new-btn"
-              onClick={() => { setStarted(false); setMessages([]); setConversationId(null) }}
-              title="New conversation"
-            >
+            <button className="new-btn" onClick={() => { setStarted(false); setMessages([]); setConversationId(null) }} title="New conversation">
               <Plus size={13} strokeWidth={2.5}/>
             </button>
           </div>
 
-          {/* MODE TOGGLE */}
           <div className="mode-toggle">
-            <button className={`mode-btn ${mode === 'xeno' ? 'active' : ''}`} onClick={() => switchMode('xeno')}>
-              <Compass size={11}/>XenoGuide
-            </button>
-            <button className={`mode-btn ${mode === 'open' ? 'active' : ''}`} onClick={() => switchMode('open')}>
-              <Globe size={11}/>Open
-            </button>
+            <button className={`mode-btn ${mode==='xeno'?'active':''}`} onClick={() => switchMode('xeno')}><Compass size={11}/>XenoGuide</button>
+            <button className={`mode-btn ${mode==='open'?'active':''}`} onClick={() => switchMode('open')}><Globe size={11}/>Open</button>
           </div>
 
-          {/* PROFILE CARD */}
+          {/* PROFILE CARD — real data */}
           {mode === 'xeno' && (
             <div className="profile-card">
               <div className="pc-top">
-                <div className="pc-avatar">
-                  <User size={14} color="rgba(0,229,255,0.6)"/>
-                </div>
+                <div className="pc-avatar"><User size={14} color="rgba(0,229,255,0.6)"/></div>
                 <div>
-                  <div className="pc-name">Your Journey</div>
-                  <div className="pc-stage">Currently on: Skills</div>
+                  <div className="pc-name">{profile?.name || authUser?.email?.split('@')[0] || 'Your Journey'}</div>
+                  <div className="pc-stage">Currently on: {currentStage?.label || 'GroundZero'}</div>
                 </div>
               </div>
               <div className="pc-progress">
-                <div className="pc-progress-fill" style={{ width: '42%' }}/>
+                <div className="pc-progress-fill" style={{ width: `${progress.percent}%` }}/>
               </div>
               <div className="pc-progress-label">
-                <span>2 of 7 stages complete</span>
-                <span>42%</span>
+                <span>{progress.completed} of {progress.total} stages complete</span>
+                <span>{progress.percent}%</span>
               </div>
             </div>
           )}
 
-          {/* PATHWAY */}
+          {/* PATHWAY — dynamic */}
           {mode === 'xeno' && (
             <div className="pathway-section">
               <div className="sec-label">Pathway</div>
               <div className="pathway-nodes">
-                {PATHWAY_STAGES.map((s, i) => (
-                  <div key={s.id} style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
-                    <div
-                      className={`pnode ${s.done ? 'done' : ''} ${s.current ? 'current' : ''}`}
-                      onClick={() => s.url !== '#' && window.open(s.url, '_blank')}
-                    >
+                {pathway.map((s, i) => (
+                  <div key={s.id} style={{ display:'flex', alignItems:'center', flex:1 }}>
+                    <div className={`pnode ${s.done?'done':''} ${s.current?'current':''}`} onClick={() => s.url !== '#' && window.open(s.url, '_blank')}>
                       <div className="pnode-dot"/>
                       <div className="pnode-label">{s.label}</div>
                     </div>
-                    {i < PATHWAY_STAGES.length - 1 && <div className="pconn"/>}
+                    {i < pathway.length - 1 && <div className="pconn"/>}
                   </div>
                 ))}
               </div>
             </div>
           )}
 
-          {/* CONVERSATIONS */}
+          {/* CONVERSATIONS — real data */}
           <div className="conv-section">
             <div className="conv-group">Recent</div>
             {displayConversations.map(c => (
-              <div
-                key={c.id}
-                className="conv-item"
-                onClick={() => {
-                  setStarted(true)
-                  setConversationId(c.id)
-                  setMessages([{
-                    role: 'assistant',
-                    content: mode === 'xeno' ? ARBI_WELCOME_XENO : ARBI_WELCOME_OPEN,
-                    time: now(),
-                  }])
-                }}
-              >
+              <div key={c.id} className="conv-item" onClick={() => {
+                setStarted(true); setConversationId(c.id)
+                setMessages([{ role: 'assistant', content: mode==='xeno' ? ARBI_WELCOME_XENO(profile?.name) : ARBI_WELCOME_OPEN, time: now() }])
+              }}>
                 <div className="conv-title">{c.title}</div>
-                <div className="conv-preview">{c.preview}</div>
+                <div className="conv-preview">Tap to continue...</div>
               </div>
             ))}
           </div>
@@ -811,11 +700,7 @@ export default function ARBIProduction() {
             <div className="platform-section">
               <div className="sec-label">Ecosystem</div>
               {PLATFORM_LINKS.map(p => (
-                <div
-                  key={p.label}
-                  className="pl-item"
-                  onClick={() => p.url !== '#' && window.open(p.url, '_blank')}
-                >
+                <div key={p.label} className="pl-item" onClick={() => p.url !== '#' && window.open(p.url, '_blank')}>
                   <div className="pl-dot" style={{ background: p.color }}/>
                   <span className="pl-name">{p.label}</span>
                   <ChevronRight size={11} color="var(--text-muted)"/>
@@ -823,78 +708,86 @@ export default function ARBIProduction() {
               ))}
             </div>
           )}
+
+          {/* SIGN OUT */}
+          <button className="signout-btn" onClick={handleSignOut}>
+            <LogOut size={13}/> Sign out
+          </button>
         </div>
 
         {/* ── MAIN ── */}
         <div className="main">
 
-          {/* HEADER */}
           <div className="header">
-            <button className="menu-btn" onClick={() => setSidebarOpen(s => !s)}>
-              <Menu size={15}/>
-            </button>
+            <button className="menu-btn" onClick={() => setSidebarOpen(s => !s)}><Menu size={15}/></button>
             <div className="header-presence">
-              <div className="header-sigil">
-                <canvas ref={sigilHdRef} width={36} height={36}/>
-              </div>
+              <div className="header-sigil"><canvas ref={sigilHdRef} width={36} height={36}/></div>
               <div>
                 <div className="header-name">ARBI</div>
-                <div className="header-sensing">
-                  {streaming ? sensingText : `${mode === 'xeno' ? 'XenoGuide' : 'Open'} · Ready`}
-                </div>
+                <div className="header-sensing">{streaming ? sensingText : `${mode==='xeno'?'XenoGuide':'Open'} · Ready`}</div>
               </div>
             </div>
             <div className="header-right">
+              <button className={`hbtn ${showObs?'active':''}`} onClick={() => setShowObs(s => !s)} title="ARBI's observations">
+                <Brain size={15}/>
+              </button>
               <button className="hbtn"><MoreHorizontal size={15}/></button>
             </div>
           </div>
 
-          {/* STAGE BAR */}
           {mode === 'xeno' && started && (
             <div className="stage-bar">
               <Zap size={11} color="var(--btn)"/>
-              <div className="stage-bar-text">Skills pathway · 2 stages complete</div>
-              <button
-                className="stage-bar-link"
-                onClick={() => window.open('https://xenogen-skills.vercel.app', '_blank')}
-              >
-                Go to Skills <ArrowRight size={10}/>
-              </button>
+              <div className="stage-bar-text">{currentStage?.label || 'GroundZero'} pathway · {progress.completed} stages complete</div>
+              {currentStage && currentStage.url !== '#' && (
+                <button className="stage-bar-link" onClick={() => window.open(currentStage.url, '_blank')}>
+                  Go to {currentStage.label} <ArrowRight size={10}/>
+                </button>
+              )}
             </div>
           )}
 
           {/* BIOLOGICAL PRESENCE PANEL */}
           <div className="presence-panel">
-            <div className="presence-canvas-wrap">
-              <canvas ref={presenceRef} width={580} height={140}/>
-            </div>
+            <div className="presence-canvas-wrap"><canvas ref={presenceRef} width={580} height={140}/></div>
             <div className="presence-states">
-              <div className="pstate">
-                <div className="pstate-v">{presenceLabel}</div>
-                <div className="pstate-l">Presence</div>
-              </div>
-              <div className="pstate">
-                <div className="pstate-v">{resonanceLabel}</div>
-                <div className="pstate-l">Clarity</div>
-              </div>
-              <div className="pstate">
-                <div className="pstate-v">{depthLabel}</div>
-                <div className="pstate-l">Attunement</div>
-              </div>
+              <div className="pstate"><div className="pstate-v">{presenceLabel}</div><div className="pstate-l">Presence</div></div>
+              <div className="pstate"><div className="pstate-v">{resonanceLabel}</div><div className="pstate-l">Clarity</div></div>
+              <div className="pstate"><div className="pstate-v">{depthLabel}</div><div className="pstate-l">Attunement</div></div>
             </div>
           </div>
 
-          {/* CHAT AREA */}
+          {/* OBSERVATIONS PANEL */}
+          {showObs && (
+            <div className="obs-panel">
+              <div className="obs-title"><Brain size={11}/> What ARBI knows about you</div>
+              {memories.filter(m => m.key !== 'onboarding_done').length === 0 ? (
+                <div className="obs-empty">Nothing recorded yet — start a conversation in XenoGuide mode.</div>
+              ) : (
+                <div className="obs-grid">
+                  {memories.filter(m => m.key !== 'onboarding_done').map(m => (
+                    <div key={m.key} className="obs-tag">
+                      {MEMORY_LABELS[m.key] || m.key}: <span>{m.value.replace(/_/g, ' ')}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* CHAT */}
           <div className="chat-area">
             {!started ? (
               <div className="welcome">
-                <div className="welcome-sigil">
-                  <canvas ref={sigilWlRef} width={80} height={80}/>
+                <div className="welcome-sigil"><canvas ref={sigilWlRef} width={80} height={80}/></div>
+                <div className="welcome-title">
+                  {profile?.name ? `Welcome back, ${profile.name}.` : "I'm ARBI."}
                 </div>
-                <div className="welcome-title">I'm ARBI.</div>
                 <div className="welcome-sub">
                   {mode === 'xeno'
-                    ? "Your guide through the XenoGenesis pathway. Wherever you're starting from — I'm here."
+                    ? profile?.name
+                      ? "Ready to keep moving. Tell me what's on your mind."
+                      : "Your guide through the XenoGenesis pathway. Wherever you're starting from — I'm here."
                     : 'A genuine intelligence, here to think alongside you. Ask me anything.'}
                 </div>
                 <div className="qs-grid">
@@ -909,43 +802,31 @@ export default function ARBIProduction() {
             ) : (
               <>
                 {messages.map((msg, i) => (
-                  <div key={i} className={`msg ${msg.role === 'user' ? 'user' : ''}`}>
-                    {msg.role === 'assistant' && (
-                      <div className="msg-av arbi">
-                        <div className="msg-av-orb"/>
-                      </div>
-                    )}
-                    {msg.role === 'assistant' && streaming && i === messages.length - 1 && msg.content === '' ? (
+                  <div key={i} className={`msg ${msg.role==='user'?'user':''}`}>
+                    {msg.role === 'assistant' && <div className="msg-av arbi"><div className="msg-av-orb"/></div>}
+                    {msg.role==='assistant' && streaming && i===messages.length-1 && msg.content==='' ? (
                       <div className="typing-wrap">
                         {sensingText && <div className="sensing-text">{sensingText}</div>}
-                        <div className="typing-indicator">
-                          <div className="td"/><div className="td"/><div className="td"/>
-                        </div>
+                        <div className="typing-indicator"><div className="td"/><div className="td"/><div className="td"/></div>
                       </div>
                     ) : (
                       <div className="msg-content">
                         <div
-                          className={`msg-bubble ${msg.role === 'assistant' ? 'arbi' : 'user'}`}
-                          {...(msg.role === 'assistant'
-                            ? { dangerouslySetInnerHTML: { __html: renderMarkdown(msg.content) } }
+                          className={`msg-bubble ${msg.role==='assistant'?'arbi':'user'}`}
+                          {...(msg.role==='assistant'
+                            ? { dangerouslySetInnerHTML:{ __html: renderMarkdown(msg.content) } }
                             : { children: msg.content }
                           )}
                         />
                         <div className="msg-time">{msg.time}</div>
-                        {msg.role === 'assistant' && msg.suggestions && !streaming && (
+                        {msg.role==='assistant' && msg.suggestions && !streaming && (
                           <div className="suggestions">
-                            {msg.suggestions.map(s => (
-                              <button key={s} className="sug-btn" onClick={() => sendMessage(s)}>{s}</button>
-                            ))}
+                            {msg.suggestions.map(s => <button key={s} className="sug-btn" onClick={() => sendMessage(s)}>{s}</button>)}
                           </div>
                         )}
                       </div>
                     )}
-                    {msg.role === 'user' && (
-                      <div className="msg-av user">
-                        <User size={12} color="var(--text-dim)"/>
-                      </div>
-                    )}
+                    {msg.role === 'user' && <div className="msg-av user"><User size={12} color="var(--text-dim)"/></div>}
                   </div>
                 ))}
                 <div ref={endRef}/>
@@ -958,28 +839,16 @@ export default function ARBIProduction() {
             <div className="input-inner">
               <div className="input-wrap">
                 <textarea
-                  ref={textareaRef}
-                  rows={1}
-                  value={input}
+                  ref={textareaRef} rows={1} value={input}
                   onChange={e => { setInput(e.target.value); autoResize() }}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() }
-                  }}
-                  placeholder={mode === 'xeno' ? 'Talk to ARBI — your guide...' : 'Ask ARBI anything...'}
+                  onKeyDown={e => { if (e.key==='Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() } }}
+                  placeholder={mode==='xeno' ? 'Talk to ARBI — your guide...' : 'Ask ARBI anything...'}
                 />
                 <div className="input-btns">
-                  <button
-                    className={`mic-btn ${recording ? 'recording' : ''}`}
-                    onClick={toggleRecording}
-                    title="Voice input"
-                  >
+                  <button className={`mic-btn ${recording?'recording':''}`} onClick={toggleRecording}>
                     {recording ? <MicOff size={13}/> : <Mic size={13}/>}
                   </button>
-                  <button
-                    className="send-btn"
-                    onClick={() => sendMessage()}
-                    disabled={streaming || !input.trim()}
-                  >
+                  <button className="send-btn" onClick={() => sendMessage()} disabled={streaming || !input.trim()}>
                     <Send size={13}/>
                   </button>
                 </div>
