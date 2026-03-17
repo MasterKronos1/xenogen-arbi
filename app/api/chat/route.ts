@@ -50,6 +50,46 @@ function getSupabase() {
   return createClient(url, key)
 }
 
+// ── Simple observation extractor ──
+// Reads the conversation and tags key facts about the user for arbi_memory
+function extractObservations(
+  response: string,
+  messages: { role: string; content: string }[]
+): { key: string; value: string }[] {
+  const obs: { key: string; value: string }[] = []
+  const userMessages = messages.filter(m => m.role === 'user').map(m => m.content.toLowerCase())
+  const allUserText = userMessages.join(' ')
+
+  // Pathway stage signals
+  if (allUserText.includes('skill') || allUserText.includes('learn') || allUserText.includes('course')) {
+    obs.push({ key: 'pathway_interest', value: 'skills' })
+  }
+  if (allUserText.includes('job') || allUserText.includes('work') || allUserText.includes('employ')) {
+    obs.push({ key: 'pathway_interest', value: 'employment' })
+  }
+  if (allUserText.includes('grant') || allUserText.includes('sassa') || allUserText.includes('money')) {
+    obs.push({ key: 'pathway_interest', value: 'grants_support' })
+  }
+
+  // Tone / context signals
+  if (allUserText.includes('scared') || allUserText.includes('worried') || allUserText.includes('dont know')) {
+    obs.push({ key: 'emotional_state', value: 'anxious_needs_grounding' })
+  }
+  if (allUserText.includes('ready') || allUserText.includes('lets go') || allUserText.includes('start')) {
+    obs.push({ key: 'emotional_state', value: 'motivated_ready' })
+  }
+
+  // Current stage from ARBI's response
+  if (response.toLowerCase().includes('groundzero') || response.toLowerCase().includes('ground zero')) {
+    obs.push({ key: 'current_stage', value: 'groundzero' })
+  }
+  if (response.toLowerCase().includes('skills') && response.toLowerCase().includes('xenogen')) {
+    obs.push({ key: 'current_stage', value: 'skills' })
+  }
+
+  return obs
+}
+
 export async function POST(req: Request) {
   const apiKey = process.env.GROQ_API_KEY
   if (!apiKey) return new Response(
@@ -78,7 +118,6 @@ export async function POST(req: Request) {
 
   if (supabase && userId !== 'anonymous') {
     try {
-      // Load ARBI's observations about this user
       const { data: memories } = await supabase
         .from('arbi_memory')
         .select('key, value')
@@ -90,7 +129,7 @@ export async function POST(req: Request) {
         memoryContext = `\n\nWHAT YOU KNOW ABOUT THIS USER:\n${memLines}\n`
       }
     } catch {
-      // Memory load failed silently — ARBI still works
+      // Memory load failed silently — ARBI still works without it
     }
   }
 
@@ -99,14 +138,14 @@ export async function POST(req: Request) {
     try {
       const lastUserMsg = [...messages].reverse().find(m => m.role === 'user')
 
-      // Ensure user exists
+      // Ensure user row exists
       if (userId !== 'anonymous') {
         await supabase
           .from('users')
           .upsert({ id: userId }, { onConflict: 'id', ignoreDuplicates: true })
       }
 
-      // Create conversation if new
+      // Create a new conversation row if this is the first message
       if (!conversationId) {
         const title = lastUserMsg?.content?.slice(0, 60) || 'New conversation'
         const { data: conv } = await supabase
@@ -126,7 +165,7 @@ export async function POST(req: Request) {
         })
       }
     } catch {
-      // Save failed silently
+      // Save failed silently — conversation continues regardless
     }
   }
 
@@ -165,7 +204,7 @@ export async function POST(req: Request) {
           } finally {
             controller.close()
 
-            // ── SAVE: store ARBI's response + extract observations ──
+            // ── SAVE: store ARBI's response and extract observations ──
             if (supabase && conversationId) {
               try {
                 await supabase.from('messages').insert({
@@ -174,7 +213,6 @@ export async function POST(req: Request) {
                   content: fullResponse,
                 })
 
-                // Extract and save observations about the user
                 if (userId !== 'anonymous') {
                   const observations = extractObservations(fullResponse, messages)
                   for (const obs of observations) {
@@ -187,7 +225,7 @@ export async function POST(req: Request) {
                   }
                 }
               } catch {
-                // Save failed silently
+                // Post-stream save failed silently
               }
             }
           }
@@ -209,44 +247,4 @@ export async function POST(req: Request) {
   }
 
   return new Response('ARBI temporarily unavailable. Please try again.', { status: 503 })
-}
-
-// ── Simple observation extractor ──
-// Reads the conversation and tags key facts about the user for arbi_memory
-function extractObservations(
-  response: string,
-  messages: { role: string; content: string }[]
-): { key: string; value: string }[] {
-  const obs: { key: string; value: string }[] = []
-  const userMessages = messages.filter(m => m.role === 'user').map(m => m.content.toLowerCase())
-  const allUserText = userMessages.join(' ')
-
-  // Pathway stage signals
-  if (allUserText.includes('skill') || allUserText.includes('learn') || allUserText.includes('course')) {
-    obs.push({ key: 'pathway_interest', value: 'skills' })
-  }
-  if (allUserText.includes('job') || allUserText.includes('work') || allUserText.includes('employ')) {
-    obs.push({ key: 'pathway_interest', value: 'employment' })
-  }
-  if (allUserText.includes('grant') || allUserText.includes('sassa') || allUserText.includes('money')) {
-    obs.push({ key: 'pathway_interest', value: 'grants_support' })
-  }
-
-  // Tone/context signals
-  if (allUserText.includes('scared') || allUserText.includes('worried') || allUserText.includes('dont know')) {
-    obs.push({ key: 'emotional_state', value: 'anxious_needs_grounding' })
-  }
-  if (allUserText.includes('ready') || allUserText.includes('lets go') || allUserText.includes('start')) {
-    obs.push({ key: 'emotional_state', value: 'motivated_ready' })
-  }
-
-  // Last active pathway stage from ARBI's response
-  if (response.toLowerCase().includes('groundzero') || response.toLowerCase().includes('ground zero')) {
-    obs.push({ key: 'current_stage', value: 'groundzero' })
-  }
-  if (response.toLowerCase().includes('skills') && response.toLowerCase().includes('xenogen')) {
-    obs.push({ key: 'current_stage', value: 'skills' })
-  }
-
-  return obs
 }
