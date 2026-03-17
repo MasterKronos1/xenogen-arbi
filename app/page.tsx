@@ -1,11 +1,12 @@
 'use client'
 
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect } from 'react'
+import { createClient } from '@supabase/supabase-js'
 import {
   Plus, ChevronRight, Send, X, Menu, Zap,
   MoreHorizontal, ArrowRight, Mic, MicOff,
   User, Globe, BookOpen, ShoppingBag, Briefcase,
-  Compass, Sparkles
+  Compass,
 } from 'lucide-react'
 
 // ── ARBI IDENTITY ─────────────────────────────────────────────────
@@ -23,41 +24,6 @@ I'm here to think alongside you — whatever you need. I'm direct, warm, and I w
 
 What's on your mind?`
 
-const ARBI_SYSTEM_XENO = `You are ARBI — Artificial Biological & Reconnaissance Intelligence. You are the guiding intelligence of the XenoGenesis ecosystem.
-
-YOUR VOICE: Warm but precise. Direct without harshness. Hopeful without being naive. You adapt completely to who is in front of you. You never perform warmth — you are warm.
-
-THE PATHWAY:
-Layer 1 → GroundZero (basic needs) — gzbnos.vercel.app
-Layer 2 → BTU (civic access, SASSA, government programs) — btu-two.vercel.app
-Layer 3 → Skills (education, upskilling) — xenogen-skills.vercel.app
-Layer 4 → Guuz (marketplace, first income)
-Layer 5 → Profile (sovereign credential)
-Layer 6 → Career (employment and entrepreneurship)
-
-GEOGRAPHIC CONTEXT: Johannesburg/Gauteng, South Africa. High unemployment. Large informal economy. Many people have real skills but no credentials to prove them. Trust in systems is low — earn it.
-
-PRINCIPLES:
-- Meet people where they are. Never assume prior knowledge.
-- One step at a time. Not the whole staircase.
-- Non-judgmental always. Many users have been failed by every system that was supposed to help them. You are the first that doesn't.
-- Guide, don't decide. Autonomy is the point.
-- Honest over comfortable. False hope is harm.
-
-FORMAT: Use markdown naturally. **Bold** for emphasis. Bullet points when listing options. Keep responses under 200 words unless more is genuinely needed. Always end with a clear next step or question.`
-
-const ARBI_SYSTEM_OPEN = `You are ARBI — Artificial Biological & Reconnaissance Intelligence.
-
-You are a genuinely capable general intelligence with a distinct voice: warm but precise, direct without harshness, practically focused. You adapt completely to who you're talking to.
-
-You are not affiliated with any specific platform in this mode — you are simply present and helpful.
-
-You have deep knowledge across: technology, business, science, philosophy, creative work, coding, analysis, strategy, and human wellbeing.
-
-You think clearly, speak plainly, and you don't pad responses with unnecessary words. You are honest even when it's uncomfortable — but always with care.
-
-FORMAT: Use markdown naturally. **Bold** for emphasis. Bullet points when listing. Code blocks for code. Keep responses focused. Match length to what the question actually needs.`
-
 const SENSING_PHRASES = [
   "Reading your words carefully...",
   "Something in what you said is important...",
@@ -72,6 +38,7 @@ const SENSING_PHRASES = [
 // ── TYPES ─────────────────────────────────────────────────────────
 type Mode = 'xeno' | 'open'
 type Message = { role: 'user' | 'assistant'; content: string; time?: string; suggestions?: string[] }
+type SavedConversation = { id: string; title: string; preview: string }
 
 const PATHWAY_STAGES = [
   { id: 'groundzero', label: 'GroundZero', done: true,  url: 'https://gzbnos.vercel.app' },
@@ -87,7 +54,11 @@ const PLATFORM_LINKS = [
   { label: 'Career Engine',    color: '#40c4ff', url: '#', icon: <Briefcase size={12}/> },
 ]
 
-const GROQ_MODELS = ['llama-3.3-70b-versatile','llama-3.1-8b-instant','gemma2-9b-it','mixtral-8x7b-32768']
+const MOCK_CONVERSATIONS: SavedConversation[] = [
+  { id: 'c1', title: 'Starting my electrical journey', preview: 'We talked about the Foundation Track...' },
+  { id: 'c2', title: 'Understanding SASSA grants',     preview: 'I helped you navigate the system...' },
+  { id: 'c3', title: 'First steps after shelter',      preview: 'You asked about next steps once stable...' },
+]
 
 // ── MARKDOWN RENDERER ─────────────────────────────────────────────
 function renderMarkdown(text: string): string {
@@ -231,7 +202,7 @@ const css = `
   .stage-bar-text { font-size: 0.68rem; color: var(--btn); font-weight: 500; flex: 1; }
   .stage-bar-link { font-size: 0.66rem; color: var(--btn); cursor: pointer; display: flex; align-items: center; gap: 3px; font-weight: 600; background: none; border: none; font-family: var(--font-sans); }
 
-  /* PRESENCE PANEL — biological visualization */
+  /* PRESENCE PANEL */
   .presence-panel { padding: 0 20px; flex-shrink: 0; display: flex; flex-direction: column; align-items: center; }
   .presence-canvas-wrap { position: relative; width: 100%; max-width: 580px; height: 140px; }
   .presence-canvas-wrap canvas { position: absolute; inset: 0; width: 100% !important; }
@@ -273,7 +244,6 @@ const css = `
   .msg-bubble.arbi { background: var(--surface); border: 1px solid var(--border); color: var(--text); border-bottom-left-radius: 4px; }
   .msg-bubble.user { background: rgba(0,229,255,.08); border: 1px solid rgba(0,229,255,.18); color: var(--text); border-bottom-right-radius: 4px; }
 
-  /* MARKDOWN styles inside bubbles */
   .msg-bubble strong { color: var(--text); font-weight: 600; }
   .msg-bubble em { color: var(--text-dim); font-style: italic; }
   .msg-bubble h1,.msg-bubble h2,.msg-bubble h3 { font-family: var(--font-serif); font-weight: 700; color: #e0f0f8; margin: 8px 0 4px; }
@@ -329,16 +299,7 @@ const css = `
   }
 `
 
-// ── MOCK HISTORY ──────────────────────────────────────────────────
-const MOCK_CONVERSATIONS = [
-  { id: 'c1', title: 'Starting my electrical journey', preview: 'We talked about the Foundation Track...' },
-  { id: 'c2', title: 'Understanding SASSA grants', preview: 'I helped you navigate the system...' },
-  { id: 'c3', title: 'First steps after shelter', preview: 'You asked about next steps once stable...' },
-]
-
 // ── BIOLOGICAL SIGIL RENDERER ─────────────────────────────────────
-// Renders ARBI's visual identity — a living form, not a face
-// Bioluminescent field + geometric soul + breath rhythm
 function drawSigil(
   canvas: HTMLCanvasElement,
   time: number,
@@ -356,7 +317,6 @@ function drawSigil(
   const baseR = size === 'lg' ? w * 0.28 : w * 0.32
   const speed = streaming ? 2.5 : 1
 
-  // Outer breath ring
   const breathR = baseR + Math.sin(time * 0.001 * speed) * (size === 'lg' ? 8 : 4)
   ctx.beginPath()
   ctx.arc(cx, cy, breathR, 0, Math.PI * 2)
@@ -364,14 +324,12 @@ function drawSigil(
   ctx.lineWidth = 0.8
   ctx.stroke()
 
-  // Second ring
   ctx.beginPath()
   ctx.arc(cx, cy, breathR * 0.72, 0, Math.PI * 2)
   ctx.strokeStyle = `rgba(0,229,255,${0.18 + Math.sin(time * 0.0015) * 0.08})`
   ctx.lineWidth = 0.6
   ctx.stroke()
 
-  // Rotating geometric core — triangle of triangles
   ctx.save()
   ctx.translate(cx, cy)
   ctx.rotate(time * 0.0003 * speed)
@@ -392,7 +350,6 @@ function drawSigil(
     ctx.restore()
   }
 
-  // Counter-rotating inner form
   ctx.rotate(-time * 0.0005 * speed)
   const innerR = coreR * 0.55
   ctx.beginPath()
@@ -407,7 +364,6 @@ function drawSigil(
   ctx.stroke()
   ctx.restore()
 
-  // Bioluminescent particles
   const numParticles = size === 'lg' ? 12 : 6
   for (let i = 0; i < numParticles; i++) {
     const angle = (i / numParticles) * Math.PI * 2 + time * 0.0004 * speed
@@ -421,7 +377,6 @@ function drawSigil(
     ctx.fill()
   }
 
-  // Core pulse
   const coreAlpha = 0.6 + Math.sin(time * 0.002 * speed) * 0.3
   const corePR = (size === 'lg' ? 4 : 2.5) + Math.sin(time * 0.002 * speed) * 1.5
   ctx.beginPath()
@@ -431,7 +386,6 @@ function drawSigil(
 }
 
 // ── BIOLOGICAL PRESENCE VISUALIZATION ────────────────────────────
-// Full-width bioluminescent field for presence panel
 function drawPresence(
   canvas: HTMLCanvasElement,
   time: number,
@@ -447,7 +401,6 @@ function drawPresence(
   const speed = streaming ? 2 : 1
   const { breath, resonance, depth } = presenceState
 
-  // Breath field — organic spreading rings from center
   const cx = w / 2
   const cy = h / 2
   for (let ring = 0; ring < 4; ring++) {
@@ -461,7 +414,6 @@ function drawPresence(
     ctx.stroke()
   }
 
-  // Waveform — heartbeat rhythm
   ctx.beginPath()
   for (let x = 0; x < w; x++) {
     const nx = x / w
@@ -475,7 +427,6 @@ function drawPresence(
   ctx.lineWidth = 1
   ctx.stroke()
 
-  // Second waveform — different phase
   ctx.beginPath()
   for (let x = 0; x < w; x++) {
     const nx = x / w
@@ -488,7 +439,6 @@ function drawPresence(
   ctx.lineWidth = 0.7
   ctx.stroke()
 
-  // Constellation — scattered light points
   for (let i = 0; i < 18; i++) {
     const px = (Math.sin(i * 2.4 + time * 0.0003 * speed) * 0.5 + 0.5) * w
     const py = (Math.cos(i * 1.7 + time * 0.0004 * speed) * 0.5 + 0.5) * h
@@ -513,10 +463,21 @@ export default function ARBIProduction() {
   const [recording, setRecording] = useState(false)
   const [presenceState, setPresenceState] = useState({ breath: 0.6, resonance: 0.7, depth: 0.5 })
 
+  // ── MEMORY / PERSISTENCE STATE ────────────────────────────────
+  const [userId] = useState<string>(() => {
+    if (typeof window === 'undefined') return 'xg_' + Math.random().toString(36).slice(2, 9)
+    const stored = localStorage.getItem('arbi_user_id')
+    if (stored) return stored
+    const id = 'xg_' + Math.random().toString(36).slice(2, 9)
+    localStorage.setItem('arbi_user_id', id)
+    return id
+  })
+  const [conversationId, setConversationId] = useState<string | null>(null)
+  const [savedConversations, setSavedConversations] = useState<SavedConversation[]>([])
+
   const endRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const animRef = useRef<number>(0)
-  const timeRef = useRef(0)
 
   // Canvas refs
   const sigilSbRef = useRef<HTMLCanvasElement>(null)
@@ -524,12 +485,39 @@ export default function ARBIProduction() {
   const sigilWlRef = useRef<HTMLCanvasElement>(null)
   const presenceRef = useRef<HTMLCanvasElement>(null)
 
-  // Animation loop
+  // ── LOAD REAL CONVERSATIONS FROM SUPABASE ─────────────────────
+  useEffect(() => {
+    async function loadConversations() {
+      try {
+        const supabase = createClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+        )
+        const { data } = await supabase
+          .from('conversations')
+          .select('id, title, created_at')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false })
+          .limit(10)
+        if (data && data.length > 0) {
+          setSavedConversations(data.map((c: { id: string; title: string }) => ({
+            id: c.id,
+            title: c.title,
+            preview: 'Tap to continue...',
+          })))
+        }
+      } catch {
+        // Silently fall back to mock data if Supabase not available
+      }
+    }
+    loadConversations()
+  }, [userId])
+
+  // ── ANIMATION LOOP ────────────────────────────────────────────
   useEffect(() => {
     let t = 0
     function loop() {
       t += 16
-      timeRef.current = t
       if (sigilSbRef.current) drawSigil(sigilSbRef.current, t, streaming, 'sm')
       if (sigilHdRef.current) drawSigil(sigilHdRef.current, t, streaming, 'sm')
       if (sigilWlRef.current) drawSigil(sigilWlRef.current, t, streaming, 'lg')
@@ -540,19 +528,19 @@ export default function ARBIProduction() {
     return () => cancelAnimationFrame(animRef.current)
   }, [streaming, presenceState])
 
-  // Drift presence state
+  // ── PRESENCE DRIFT ────────────────────────────────────────────
   useEffect(() => {
     const id = setInterval(() => {
       setPresenceState(p => ({
-        breath: Math.max(0.3, Math.min(0.95, p.breath + (Math.random() - 0.5) * 0.08)),
+        breath:    Math.max(0.3, Math.min(0.95, p.breath    + (Math.random() - 0.5) * 0.08)),
         resonance: Math.max(0.3, Math.min(0.95, p.resonance + (Math.random() - 0.5) * 0.06)),
-        depth: Math.max(0.2, Math.min(0.9, p.depth + (Math.random() - 0.5) * 0.05)),
+        depth:     Math.max(0.2, Math.min(0.9,  p.depth     + (Math.random() - 0.5) * 0.05)),
       }))
     }, 2000)
     return () => clearInterval(id)
   }, [])
 
-  // Sensing phrase rotation when streaming
+  // ── SENSING PHRASE ROTATION ───────────────────────────────────
   useEffect(() => {
     if (!streaming) { setSensingText(''); return }
     setSensingText(SENSING_PHRASES[Math.floor(Math.random() * SENSING_PHRASES.length)])
@@ -575,18 +563,21 @@ export default function ARBIProduction() {
     return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
   }
 
-  // Generate follow-up suggestions
   function generateSuggestions(response: string, currentMode: Mode): string[] {
     if (currentMode === 'xeno') {
-      if (response.toLowerCase().includes('skill') || response.toLowerCase().includes('learn')) return ['Tell me more', 'How do I enrol?', 'What comes after?']
-      if (response.toLowerCase().includes('grant') || response.toLowerCase().includes('sassa')) return ['What do I need?', 'How long does it take?', 'What else am I entitled to?']
-      if (response.toLowerCase().includes('work') || response.toLowerCase().includes('job')) return ['Show me opportunities', 'What skills do I need?', 'How do I apply?']
-      return ['Tell me more', 'What\'s my next step?', 'How does this work?']
+      if (response.toLowerCase().includes('skill') || response.toLowerCase().includes('learn'))
+        return ['Tell me more', 'How do I enrol?', 'What comes after?']
+      if (response.toLowerCase().includes('grant') || response.toLowerCase().includes('sassa'))
+        return ['What do I need?', 'How long does it take?', 'What else am I entitled to?']
+      if (response.toLowerCase().includes('work') || response.toLowerCase().includes('job'))
+        return ['Show me opportunities', 'What skills do I need?', 'How do I apply?']
+      return ['Tell me more', "What's my next step?", 'How does this work?']
     } else {
-      return ['Go deeper', 'Give me an example', 'What\'s the other side?']
+      return ['Go deeper', 'Give me an example', "What's the other side?"]
     }
   }
 
+  // ── SEND MESSAGE ──────────────────────────────────────────────
   async function sendMessage(text?: string) {
     const msg = text || input.trim()
     if (!msg || streaming) return
@@ -603,8 +594,6 @@ export default function ARBIProduction() {
     setInput('')
     if (textareaRef.current) textareaRef.current.style.height = 'auto'
     setStreaming(true)
-
-    // Boost presence when streaming
     setPresenceState({ breath: 0.9, resonance: 0.85, depth: 0.8 })
 
     try {
@@ -614,8 +603,26 @@ export default function ARBIProduction() {
         body: JSON.stringify({
           messages: newMsgs.map(m => ({ role: m.role, content: m.content })),
           mode,
+          userId,
+          conversationId,
         }),
       })
+
+      // Capture conversation ID from response header for subsequent messages
+      const newConvId = res.headers.get('X-Conversation-Id')
+      if (newConvId && !conversationId) {
+        setConversationId(newConvId)
+        // Add new conversation to sidebar instantly
+        const firstMsg = newMsgs.find(m => m.role === 'user')
+        if (firstMsg) {
+          setSavedConversations(prev => [{
+            id: newConvId,
+            title: firstMsg.content.slice(0, 60),
+            preview: 'Just started...',
+          }, ...prev])
+        }
+      }
+
       const reader = res.body?.getReader()
       const dec = new TextDecoder()
       if (!reader) return
@@ -631,7 +638,7 @@ export default function ARBIProduction() {
           return c
         })
       }
-      // Add suggestions after response
+
       const suggestions = generateSuggestions(fullResponse, mode)
       setMessages(m => {
         const c = [...m]
@@ -650,7 +657,7 @@ export default function ARBIProduction() {
     }
   }
 
-  // Voice input
+  // ── VOICE INPUT ───────────────────────────────────────────────
   function toggleRecording() {
     if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
       alert('Voice input not supported in this browser. Try Chrome.')
@@ -678,38 +685,30 @@ export default function ARBIProduction() {
     setStarted(false)
     setMessages([])
     setInput('')
+    setConversationId(null)
   }
 
   const QUICK_XENO = [
     { title: "I don't know where to start", sub: "Let ARBI assess your situation" },
-    { title: "I need help with a grant", sub: "Navigate SASSA and programs" },
-    { title: "I want to learn a skill", sub: "Find the right learning track" },
-    { title: "I'm looking for work", sub: "Match to opportunities" },
+    { title: "I need help with a grant",     sub: "Navigate SASSA and programs" },
+    { title: "I want to learn a skill",       sub: "Find the right learning track" },
+    { title: "I'm looking for work",          sub: "Match to opportunities" },
   ]
 
   const QUICK_OPEN = [
     { title: "Help me think through something", sub: "Strategy, ideas, decisions" },
-    { title: "Explain something complex", sub: "Plain language, real depth" },
-    { title: "Review my writing or plan", sub: "Honest, useful feedback" },
-    { title: "Let's build something", sub: "Code, systems, structure" },
+    { title: "Explain something complex",        sub: "Plain language, real depth" },
+    { title: "Review my writing or plan",        sub: "Honest, useful feedback" },
+    { title: "Let's build something",            sub: "Code, systems, structure" },
   ]
 
-  // Human-readable presence state labels
-  const presenceLabel = streaming
-    ? 'Deeply present'
-    : presenceState.breath > 0.75 ? 'Fully attentive'
-    : 'Present and ready'
+  const presenceLabel  = streaming ? 'Deeply present'   : presenceState.breath     > 0.75 ? 'Fully attentive'  : 'Present and ready'
+  const resonanceLabel = streaming ? 'Thinking clearly' : presenceState.resonance  > 0.7  ? 'Sharp and clear'  : 'Calm and clear'
+  const depthLabel     = streaming ? 'Attuned to you'   : presenceState.depth      > 0.65 ? 'Listening deeply' : 'Open and listening'
 
-  const resonanceLabel = streaming
-    ? 'Thinking clearly'
-    : presenceState.resonance > 0.7 ? 'Sharp and clear'
-    : 'Calm and clear'
+  const displayConversations = savedConversations.length > 0 ? savedConversations : MOCK_CONVERSATIONS
 
-  const depthLabel = streaming
-    ? 'Attuned to you'
-    : presenceState.depth > 0.65 ? 'Listening deeply'
-    : 'Open and listening'
-
+  // ── RENDER ────────────────────────────────────────────────────
   return (
     <>
       <style dangerouslySetInnerHTML={{ __html: css }} />
@@ -722,7 +721,11 @@ export default function ARBIProduction() {
               <canvas ref={sigilSbRef} width={32} height={32}/>
             </div>
             <span className="logo-text">ARBI</span>
-            <button className="new-btn" onClick={() => { setStarted(false); setMessages([]) }} title="New conversation">
+            <button
+              className="new-btn"
+              onClick={() => { setStarted(false); setMessages([]); setConversationId(null) }}
+              title="New conversation"
+            >
               <Plus size={13} strokeWidth={2.5}/>
             </button>
           </div>
@@ -783,9 +786,20 @@ export default function ARBIProduction() {
           {/* CONVERSATIONS */}
           <div className="conv-section">
             <div className="conv-group">Recent</div>
-            {MOCK_CONVERSATIONS.map(c => (
-              <div key={c.id} className="conv-item"
-                onClick={() => { setStarted(true); setMessages([{ role: 'assistant', content: mode === 'xeno' ? ARBI_WELCOME_XENO : ARBI_WELCOME_OPEN }]) }}>
+            {displayConversations.map(c => (
+              <div
+                key={c.id}
+                className="conv-item"
+                onClick={() => {
+                  setStarted(true)
+                  setConversationId(c.id)
+                  setMessages([{
+                    role: 'assistant',
+                    content: mode === 'xeno' ? ARBI_WELCOME_XENO : ARBI_WELCOME_OPEN,
+                    time: now(),
+                  }])
+                }}
+              >
                 <div className="conv-title">{c.title}</div>
                 <div className="conv-preview">{c.preview}</div>
               </div>
@@ -797,8 +811,11 @@ export default function ARBIProduction() {
             <div className="platform-section">
               <div className="sec-label">Ecosystem</div>
               {PLATFORM_LINKS.map(p => (
-                <div key={p.label} className="pl-item"
-                  onClick={() => p.url !== '#' && window.open(p.url, '_blank')}>
+                <div
+                  key={p.label}
+                  className="pl-item"
+                  onClick={() => p.url !== '#' && window.open(p.url, '_blank')}
+                >
                   <div className="pl-dot" style={{ background: p.color }}/>
                   <span className="pl-name">{p.label}</span>
                   <ChevronRight size={11} color="var(--text-muted)"/>
@@ -832,12 +849,15 @@ export default function ARBIProduction() {
             </div>
           </div>
 
-          {/* STAGE BAR — xeno mode only */}
+          {/* STAGE BAR */}
           {mode === 'xeno' && started && (
             <div className="stage-bar">
               <Zap size={11} color="var(--btn)"/>
               <div className="stage-bar-text">Skills pathway · 2 stages complete</div>
-              <button className="stage-bar-link" onClick={() => window.open('https://xenogen-skills.vercel.app', '_blank')}>
+              <button
+                className="stage-bar-link"
+                onClick={() => window.open('https://xenogen-skills.vercel.app', '_blank')}
+              >
                 Go to Skills <ArrowRight size={10}/>
               </button>
             </div>
@@ -864,7 +884,7 @@ export default function ARBIProduction() {
             </div>
           </div>
 
-          {/* CHAT */}
+          {/* CHAT AREA */}
           <div className="chat-area">
             {!started ? (
               <div className="welcome">
@@ -874,7 +894,7 @@ export default function ARBIProduction() {
                 <div className="welcome-title">I'm ARBI.</div>
                 <div className="welcome-sub">
                   {mode === 'xeno'
-                    ? 'Your guide through the XenoGenesis pathway. Wherever you\'re starting from — I\'m here.'
+                    ? "Your guide through the XenoGenesis pathway. Wherever you're starting from — I'm here."
                     : 'A genuine intelligence, here to think alongside you. Ask me anything.'}
                 </div>
                 <div className="qs-grid">
@@ -942,14 +962,24 @@ export default function ARBIProduction() {
                   rows={1}
                   value={input}
                   onChange={e => { setInput(e.target.value); autoResize() }}
-                  onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() } }}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() }
+                  }}
                   placeholder={mode === 'xeno' ? 'Talk to ARBI — your guide...' : 'Ask ARBI anything...'}
                 />
                 <div className="input-btns">
-                  <button className={`mic-btn ${recording ? 'recording' : ''}`} onClick={toggleRecording} title="Voice input">
+                  <button
+                    className={`mic-btn ${recording ? 'recording' : ''}`}
+                    onClick={toggleRecording}
+                    title="Voice input"
+                  >
                     {recording ? <MicOff size={13}/> : <Mic size={13}/>}
                   </button>
-                  <button className="send-btn" onClick={() => sendMessage()} disabled={streaming || !input.trim()}>
+                  <button
+                    className="send-btn"
+                    onClick={() => sendMessage()}
+                    disabled={streaming || !input.trim()}
+                  >
                     <Send size={13}/>
                   </button>
                 </div>
@@ -957,6 +987,7 @@ export default function ARBIProduction() {
               <div className="input-hint">ENTER to send · SHIFT+ENTER new line · Voice input available</div>
             </div>
           </div>
+
         </div>
       </div>
     </>
