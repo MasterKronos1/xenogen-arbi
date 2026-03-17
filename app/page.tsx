@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { createClient } from '@supabase/supabase-js'
 import {
   Plus, ChevronRight, Send, X, Menu, Zap,
   MoreHorizontal, ArrowRight, Mic, MicOff,
@@ -489,6 +488,7 @@ export default function ARBIProduction() {
   useEffect(() => {
     async function loadConversations() {
       try {
+        const { createClient } = await import('@supabase/supabase-js')
         const supabase = createClient(
           process.env.NEXT_PUBLIC_SUPABASE_URL!,
           process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
