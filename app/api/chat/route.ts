@@ -1,6 +1,7 @@
 export const runtime = 'nodejs'
 
 import Groq from 'groq-sdk'
+import { createClient } from '@supabase/supabase-js'
 
 const MODELS = [
   'llama-3.3-70b-versatile',
@@ -42,6 +43,13 @@ You think clearly, speak plainly, and don't pad responses with unnecessary words
 
 FORMAT: Use markdown naturally. **Bold** for emphasis. Code blocks for code. Bullet lists when listing. Match response length to what the question actually needs — brief for simple questions, thorough for complex ones.`
 
+function getSupabase() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  if (!url || !key) return null
+  return createClient(url, key)
+}
+
 export async function POST(req: Request) {
   const apiKey = process.env.GROQ_API_KEY
   if (!apiKey) return new Response(
@@ -51,16 +59,78 @@ export async function POST(req: Request) {
 
   let messages: { role: string; content: string }[] = []
   let mode = 'xeno'
+  let userId = 'anonymous'
+  let conversationId: string | null = null
 
   try {
     const body = await req.json()
     messages = body.messages || []
     mode = body.mode || 'xeno'
+    userId = body.userId || 'anonymous'
+    conversationId = body.conversationId || null
   } catch {
     return new Response('Invalid request.', { status: 400 })
   }
 
-  const systemPrompt = mode === 'open' ? SYSTEM_OPEN : SYSTEM_XENO
+  // ── MEMORY: load user context from Supabase ──
+  const supabase = getSupabase()
+  let memoryContext = ''
+
+  if (supabase && userId !== 'anonymous') {
+    try {
+      // Load ARBI's observations about this user
+      const { data: memories } = await supabase
+        .from('arbi_memory')
+        .select('key, value')
+        .eq('user_id', userId)
+        .limit(20)
+
+      if (memories && memories.length > 0) {
+        const memLines = memories.map((m: { key: string; value: string }) => `${m.key}: ${m.value}`).join('\n')
+        memoryContext = `\n\nWHAT YOU KNOW ABOUT THIS USER:\n${memLines}\n`
+      }
+    } catch {
+      // Memory load failed silently — ARBI still works
+    }
+  }
+
+  // ── SAVE: store this conversation turn ──
+  if (supabase) {
+    try {
+      const lastUserMsg = [...messages].reverse().find(m => m.role === 'user')
+
+      // Ensure user exists
+      if (userId !== 'anonymous') {
+        await supabase
+          .from('users')
+          .upsert({ id: userId }, { onConflict: 'id', ignoreDuplicates: true })
+      }
+
+      // Create conversation if new
+      if (!conversationId) {
+        const title = lastUserMsg?.content?.slice(0, 60) || 'New conversation'
+        const { data: conv } = await supabase
+          .from('conversations')
+          .insert({ user_id: userId === 'anonymous' ? null : userId, title, mode })
+          .select('id')
+          .single()
+        conversationId = conv?.id || null
+      }
+
+      // Save the latest user message
+      if (conversationId && lastUserMsg) {
+        await supabase.from('messages').insert({
+          conv_id: conversationId,
+          role: 'user',
+          content: lastUserMsg.content,
+        })
+      }
+    } catch {
+      // Save failed silently
+    }
+  }
+
+  const systemPrompt = (mode === 'open' ? SYSTEM_OPEN : SYSTEM_XENO) + memoryContext
   const groq = new Groq({ apiKey })
 
   for (const model of MODELS) {
@@ -80,22 +150,56 @@ export async function POST(req: Request) {
       })
 
       const encoder = new TextEncoder()
+      let fullResponse = ''
+
       const readable = new ReadableStream({
         async start(controller) {
           try {
             for await (const chunk of stream) {
               const text = chunk.choices[0]?.delta?.content || ''
-              if (text) controller.enqueue(encoder.encode(text))
+              if (text) {
+                fullResponse += text
+                controller.enqueue(encoder.encode(text))
+              }
             }
           } finally {
             controller.close()
+
+            // ── SAVE: store ARBI's response + extract observations ──
+            if (supabase && conversationId) {
+              try {
+                await supabase.from('messages').insert({
+                  conv_id: conversationId,
+                  role: 'assistant',
+                  content: fullResponse,
+                })
+
+                // Extract and save observations about the user
+                if (userId !== 'anonymous') {
+                  const observations = extractObservations(fullResponse, messages)
+                  for (const obs of observations) {
+                    await supabase.from('arbi_memory').upsert({
+                      user_id: userId,
+                      key: obs.key,
+                      value: obs.value,
+                      updated_at: new Date().toISOString(),
+                    }, { onConflict: 'user_id,key' })
+                  }
+                }
+              } catch {
+                // Save failed silently
+              }
+            }
           }
         },
       })
 
-      return new Response(readable, {
-        headers: { 'Content-Type': 'text/plain; charset=utf-8' },
-      })
+      const headers: Record<string, string> = {
+        'Content-Type': 'text/plain; charset=utf-8',
+      }
+      if (conversationId) headers['X-Conversation-Id'] = conversationId
+
+      return new Response(readable, { headers })
 
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err)
@@ -105,4 +209,44 @@ export async function POST(req: Request) {
   }
 
   return new Response('ARBI temporarily unavailable. Please try again.', { status: 503 })
+}
+
+// ── Simple observation extractor ──
+// Reads the conversation and tags key facts about the user for arbi_memory
+function extractObservations(
+  response: string,
+  messages: { role: string; content: string }[]
+): { key: string; value: string }[] {
+  const obs: { key: string; value: string }[] = []
+  const userMessages = messages.filter(m => m.role === 'user').map(m => m.content.toLowerCase())
+  const allUserText = userMessages.join(' ')
+
+  // Pathway stage signals
+  if (allUserText.includes('skill') || allUserText.includes('learn') || allUserText.includes('course')) {
+    obs.push({ key: 'pathway_interest', value: 'skills' })
+  }
+  if (allUserText.includes('job') || allUserText.includes('work') || allUserText.includes('employ')) {
+    obs.push({ key: 'pathway_interest', value: 'employment' })
+  }
+  if (allUserText.includes('grant') || allUserText.includes('sassa') || allUserText.includes('money')) {
+    obs.push({ key: 'pathway_interest', value: 'grants_support' })
+  }
+
+  // Tone/context signals
+  if (allUserText.includes('scared') || allUserText.includes('worried') || allUserText.includes('dont know')) {
+    obs.push({ key: 'emotional_state', value: 'anxious_needs_grounding' })
+  }
+  if (allUserText.includes('ready') || allUserText.includes('lets go') || allUserText.includes('start')) {
+    obs.push({ key: 'emotional_state', value: 'motivated_ready' })
+  }
+
+  // Last active pathway stage from ARBI's response
+  if (response.toLowerCase().includes('groundzero') || response.toLowerCase().includes('ground zero')) {
+    obs.push({ key: 'current_stage', value: 'groundzero' })
+  }
+  if (response.toLowerCase().includes('skills') && response.toLowerCase().includes('xenogen')) {
+    obs.push({ key: 'current_stage', value: 'skills' })
+  }
+
+  return obs
 }
