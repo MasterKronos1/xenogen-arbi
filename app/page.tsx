@@ -393,26 +393,33 @@ export default function ARBIProduction() {
   useEffect(() => {
     async function init() {
       try {
-        const { createClient } = await import('@supabase/supabase-js')
-        const supabase = createClient(
-          process.env.NEXT_PUBLIC_SUPABASE_URL!,
-          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-        )
+        const { getSupabase } = await import('@/lib/supabase')
+        const supabase = getSupabase()
 
-        // Poll for session — handles case where exchange just completed
-        const justAuthed = sessionStorage.getItem('arbi_just_authed')
-        const maxAttempts = justAuthed ? 8 : 2
+        // First try reading directly from localStorage (fastest, avoids timing issues)
         let session = null
+        const lsKey = Object.keys(localStorage).find(k => k.startsWith('sb-') && k.endsWith('-auth-token'))
+        if (lsKey) {
+          try {
+            const raw = JSON.parse(localStorage.getItem(lsKey) || '{}')
+            if (raw.access_token && raw.expires_at && raw.expires_at > Date.now() / 1000) {
+              // Valid token in localStorage — refresh the client session from it
+              const { data } = await supabase.auth.getSession()
+              if (data.session) session = data.session
+            }
+          } catch { /* fall through to polling */ }
+        }
 
-        for (let i = 0; i < maxAttempts; i++) {
-          const { data } = await supabase.auth.getSession()
-          if (data.session) { session = data.session; break }
-          await new Promise(r => setTimeout(r, 400))
+        // Poll as fallback
+        if (!session) {
+          for (let i = 0; i < 10; i++) {
+            await new Promise(r => setTimeout(r, 500))
+            const { data } = await supabase.auth.getSession()
+            if (data.session) { session = data.session; break }
+          }
         }
 
         if (!session) { router.replace('/auth'); return }
-
-        // Clear the just-authed flag
         sessionStorage.removeItem('arbi_just_authed')
 
         const user = session.user
