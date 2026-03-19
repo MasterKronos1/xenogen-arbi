@@ -409,12 +409,13 @@ export default function ARBIProduction() {
         const user = session.user
         setAuthUser(user)
 
-        const { getStorageAdapter } = await import('@/lib/adapters/supabase-adapter')
-        const adapter = getStorageAdapter()
+        // Use singleton Supabase client — carries auth token, passes RLS
+        const { getSupabase } = await import('@/lib/supabase')
+        const supabase = getSupabase()
         const [userProfile, userMemories, userConversations] = await Promise.all([
-          getOrCreateUser(adapter as any, user.id),
-          getUserMemory(adapter as any, user.id),
-          getUserConversations(adapter as any, user.id),
+          getOrCreateUser(supabase as any, user.id),
+          getUserMemory(supabase as any, user.id),
+          getUserConversations(supabase as any, user.id),
         ])
         setProfile(userProfile)
         setMemories(userMemories)
@@ -589,8 +590,8 @@ export default function ARBIProduction() {
 
       // Refresh memories after response
       if (authUser) {
-        const {getStorageAdapter} = await import('@/lib/adapters/supabase-adapter')
-        const fresh = await getUserMemory(getStorageAdapter() as any, authUser.id)
+        const { getSupabase } = await import('@/lib/supabase')
+        const fresh = await getUserMemory(getSupabase() as any, authUser.id)
         setMemories(fresh)
       }
     } catch {
