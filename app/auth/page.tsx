@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { getSession } from '@/lib/auth'
 
@@ -115,7 +115,7 @@ const css = `
   .footer-text { font-size: 0.7rem; color: var(--text-muted); text-align: center; line-height: 1.6; }
 `
 
-export default function AuthPage() {
+function AuthPageInner() {
   const [email, setEmail]               = useState('')
   const [loading, setLoading]           = useState(false)
   const [googleLoading, setGoogleLoading] = useState(false)
@@ -257,5 +257,17 @@ export default function AuthPage() {
         </div>
       </div>
     </>
+  )
+}
+
+export default function AuthPage() {
+  return (
+    <Suspense fallback={
+      <div style={{minHeight:'100vh',background:'#040e14',display:'flex',alignItems:'center',justifyContent:'center'}}>
+        <div style={{width:40,height:40,borderRadius:'50%',border:'2px solid #102336',borderTopColor:'#00e5ff',animation:'spin 0.8s linear infinite'}}/>
+      </div>
+    }>
+      <AuthPageInner/>
+    </Suspense>
   )
 }
