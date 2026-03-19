@@ -392,20 +392,46 @@ export default function ARBIProduction() {
   // ── AUTH + LOAD ───────────────────────────────────────────────
   useEffect(() => {
     async function init() {
-      const user = await getUser()
-      if (!user) { router.replace('/auth'); return }
-      setAuthUser(user)
-      const { getStorageAdapter } = await import('@/lib/adapters/supabase-adapter')
-      const adapter = getStorageAdapter()
-      const [userProfile, userMemories, userConversations] = await Promise.all([
-        getOrCreateUser(adapter as any, user.id),
-        getUserMemory(adapter as any, user.id),
-        getUserConversations(adapter as any, user.id),
-      ])
-      setProfile(userProfile)
-      setMemories(userMemories)
-      setConversations(userConversations)
-      setAuthLoading(false)
+      try {
+        const { createClient } = await import('@supabase/supabase-js')
+        const supabase = createClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+        )
+
+        // Poll for session — handles case where exchange just completed
+        const justAuthed = sessionStorage.getItem('arbi_just_authed')
+        const maxAttempts = justAuthed ? 8 : 2
+        let session = null
+
+        for (let i = 0; i < maxAttempts; i++) {
+          const { data } = await supabase.auth.getSession()
+          if (data.session) { session = data.session; break }
+          await new Promise(r => setTimeout(r, 400))
+        }
+
+        if (!session) { router.replace('/auth'); return }
+
+        // Clear the just-authed flag
+        sessionStorage.removeItem('arbi_just_authed')
+
+        const user = session.user
+        setAuthUser(user)
+
+        const { getStorageAdapter } = await import('@/lib/adapters/supabase-adapter')
+        const adapter = getStorageAdapter()
+        const [userProfile, userMemories, userConversations] = await Promise.all([
+          getOrCreateUser(adapter as any, user.id),
+          getUserMemory(adapter as any, user.id),
+          getUserConversations(adapter as any, user.id),
+        ])
+        setProfile(userProfile)
+        setMemories(userMemories)
+        setConversations(userConversations)
+        setAuthLoading(false)
+      } catch {
+        router.replace('/auth')
+      }
     }
     init()
   }, [router])
