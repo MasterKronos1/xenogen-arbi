@@ -11,13 +11,9 @@ function ExchangeInner() {
   useEffect(() => {
     async function run() {
       try {
-        const { createClient } = await import('@supabase/supabase-js')
-        const supabase = createClient(
-          process.env.NEXT_PUBLIC_SUPABASE_URL!,
-          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-        )
+        const { getSupabase } = await import('@/lib/supabase')
+        const supabase = getSupabase()
 
-        // Handle PKCE code exchange
         const code = searchParams.get('code')
         if (code) {
           const { error } = await supabase.auth.exchangeCodeForSession(code)
@@ -28,31 +24,38 @@ function ExchangeInner() {
           }
         }
 
-        // Poll for session — give Supabase up to 3 seconds to persist
+        // Poll for session
         let session = null
-        for (let i = 0; i < 6; i++) {
-          await new Promise(r => setTimeout(r, 500))
+        for (let i = 0; i < 8; i++) {
+          await new Promise(r => setTimeout(r, 400))
           const { data } = await supabase.auth.getSession()
           if (data.session) { session = data.session; break }
         }
 
+        // Fallback: read from localStorage directly
         if (!session) {
-          console.error('No session after exchange')
+          const lsKey = Object.keys(localStorage).find(k => k.startsWith('sb-') && k.endsWith('-auth-token'))
+          if (lsKey) {
+            try {
+              const raw = JSON.parse(localStorage.getItem(lsKey) || '{}')
+              if (raw?.user?.id) session = raw
+            } catch {}
+          }
+        }
+
+        if (!session) {
+          console.error('No session after polling')
           router.replace('/auth?error=auth_failed')
           return
         }
 
         setStatus('Setting up your profile...')
 
-        // Check onboarding
         const { data: profile } = await supabase
           .from('users')
           .select('name')
           .eq('id', session.user.id)
           .single()
-
-        // Store a simple flag so page.tsx knows auth just completed
-        sessionStorage.setItem('arbi_just_authed', session.user.id)
 
         if (!profile?.name) {
           router.replace('/onboarding')
