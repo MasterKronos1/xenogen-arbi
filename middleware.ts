@@ -1,15 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-const PUBLIC_ROUTES = ['/auth', '/auth/callback']
-
-// Supabase cookie name is based on the project ref
-const SUPABASE_PROJECT_REF = 'ocwxyhgcgegdiigpxytc'
-const AUTH_COOKIE = `sb-${SUPABASE_PROJECT_REF}-auth-token`
+const PUBLIC_ROUTES = ['/auth']
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  // Always allow public routes, API routes, static files
+  // Allow public routes, API routes, static files
   if (
     PUBLIC_ROUTES.some(route => pathname.startsWith(route)) ||
     pathname.startsWith('/api/') ||
@@ -19,13 +15,15 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
-  // Check for the exact Supabase auth cookie
-  const authCookie = request.cookies.get(AUTH_COOKIE)
+  // Check for Supabase session cookie
+  const cookies  = request.cookies.getAll()
+  const hasAuth  = cookies.some(c =>
+    c.name.includes('auth-token') ||
+    c.name.includes('access-token') ||
+    c.name.startsWith('sb-')
+  )
 
-  // Also check for code verifier cookie which appears during OAuth flow
-  const hasAnySbCookie = request.cookies.getAll().some(c => c.name.startsWith('sb-'))
-
-  if (!authCookie && !hasAnySbCookie) {
+  if (!hasAuth) {
     return NextResponse.redirect(new URL('/auth', request.url))
   }
 
