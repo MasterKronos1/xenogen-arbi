@@ -1,22 +1,33 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-/**
- * Minimal middleware — only blocks direct hash/fragment bypass.
- * Auth is enforced client-side in page.tsx via Supabase session check.
- * Supabase PKCE uses localStorage not cookies, so server-side
- * session checking is not possible without @supabase/ssr package.
- */
-export async function middleware(request: NextRequest) {
+const PUBLIC_PREFIX = '/auth'
+
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  // Block root access with a hash (the bypass attempt)
-  if (pathname === '/' && request.headers.get('referer')?.includes('/auth')) {
+  if (
+    pathname.startsWith(PUBLIC_PREFIX) ||
+    pathname.startsWith('/api/') ||
+    pathname.startsWith('/_next/') ||
+    pathname.startsWith('/favicon')
+  ) {
     return NextResponse.next()
+  }
+
+  const cookies = request.cookies.getAll()
+  const hasAuth = cookies.some(c =>
+    c.name.startsWith('sb-') ||
+    c.name.includes('auth-token') ||
+    c.name.includes('supabase')
+  )
+
+  if (!hasAuth) {
+    return NextResponse.redirect(new URL('/auth', request.url))
   }
 
   return NextResponse.next()
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|api).*)'],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)',],
 }
