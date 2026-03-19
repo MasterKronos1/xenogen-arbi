@@ -45,6 +45,7 @@ export const PATHWAY: PathwayStage[] = [
 const STAGE_ORDER = ['groundzero', 'btu', 'skills', 'guuz', 'career']
 
 export function getSupabaseClient(): SupabaseClient {
+  // Returns singleton — import getSupabase from lib/supabase instead when possible
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   return createClient(url, key)
@@ -150,7 +151,7 @@ export async function deleteMemory(
 // ── PATHWAY ───────────────────────────────────────────────────────
 
 export function resolvePathway(currentStage: string): PathwayStage[] {
-  const currentIndex = STAGE_ORDER.indexOf(currentStage)
+  const currentIndex = STAGE_ORDER.indexOf(currentStage.trim())
   return PATHWAY.map((stage, i) => ({
     ...stage,
     done:    i < currentIndex,
@@ -159,7 +160,7 @@ export function resolvePathway(currentStage: string): PathwayStage[] {
 }
 
 export function getPathwayProgress(currentStage: string): { completed: number; total: number; percent: number } {
-  const currentIndex = Math.max(0, STAGE_ORDER.indexOf(currentStage))
+  const currentIndex = Math.max(0, STAGE_ORDER.indexOf(currentStage.trim()))
   return {
     completed: currentIndex,
     total:     STAGE_ORDER.length,
