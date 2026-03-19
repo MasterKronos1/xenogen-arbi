@@ -1,19 +1,17 @@
-import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 
-// Routes that don't require auth
 const PUBLIC_ROUTES = ['/auth', '/auth/callback']
+
+// Supabase cookie name is based on the project ref
+const SUPABASE_PROJECT_REF = 'ocwxyhgcgegdiigpxytc'
+const AUTH_COOKIE = `sb-${SUPABASE_PROJECT_REF}-auth-token`
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  // Allow public routes through
-  if (PUBLIC_ROUTES.some(route => pathname.startsWith(route))) {
-    return NextResponse.next()
-  }
-
-  // Allow API routes and static files through
+  // Always allow public routes, API routes, static files
   if (
+    PUBLIC_ROUTES.some(route => pathname.startsWith(route)) ||
     pathname.startsWith('/api/') ||
     pathname.startsWith('/_next/') ||
     pathname.startsWith('/favicon')
@@ -21,36 +19,19 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
-  // Check for Supabase session cookie
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  // Check for the exact Supabase auth cookie
+  const authCookie = request.cookies.get(AUTH_COOKIE)
 
-  if (!supabaseUrl || !supabaseKey) {
-    // Env vars missing — let through and handle client-side
-    return NextResponse.next()
-  }
+  // Also check for code verifier cookie which appears during OAuth flow
+  const hasAnySbCookie = request.cookies.getAll().some(c => c.name.startsWith('sb-'))
 
-  // Read the auth token from cookies
-  const cookieHeader = request.headers.get('cookie') || ''
-  const hasSession = cookieHeader.includes('sb-') && cookieHeader.includes('-auth-token')
-
-  if (!hasSession) {
-    // No session cookie — redirect to auth
-    const authUrl = new URL('/auth', request.url)
-    return NextResponse.redirect(authUrl)
+  if (!authCookie && !hasAnySbCookie) {
+    return NextResponse.redirect(new URL('/auth', request.url))
   }
 
   return NextResponse.next()
 }
 
 export const config = {
-  matcher: [
-    /*
-     * Match all routes except:
-     * - _next/static (static files)
-     * - _next/image (image optimization)
-     * - favicon.ico
-     */
-    '/((?!_next/static|_next/image|favicon.ico).*)',
-  ],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)',],
 }
