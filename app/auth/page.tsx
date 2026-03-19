@@ -2,7 +2,6 @@
 
 import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { getSession } from '@/lib/auth'
 
 const css = `
   @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Plus+Jakarta+Sans:wght@300;400;500;600&display=swap');
@@ -21,46 +20,30 @@ const css = `
     --accent:     #00e5ff;
     --btn:        #0097b2;
     --btn-hover:  #007d94;
-    --accent-soft:#00e5ff12;
     --font-serif: 'Playfair Display', Georgia, serif;
     --font-sans:  'Plus Jakarta Sans', system-ui, sans-serif;
-    --r:          8px;
     --r-lg:       14px;
   }
 
   html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--font-sans); -webkit-font-smoothing: antialiased; }
 
   .shell {
-    min-height: 100vh;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 24px;
+    min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px;
     background: radial-gradient(ellipse at 50% 0%, rgba(0,229,255,0.04) 0%, transparent 70%);
   }
-
   .card {
-    width: 100%;
-    max-width: 420px;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 20px;
-    padding: 40px 36px;
-    display: flex;
-    flex-direction: column;
-    gap: 24px;
+    width: 100%; max-width: 420px; background: var(--surface);
+    border: 1px solid var(--border); border-radius: 20px;
+    padding: 40px 36px; display: flex; flex-direction: column; gap: 24px;
   }
-
   .header { text-align: center; }
   .orb {
     width: 52px; height: 52px; border-radius: 50%;
     background: rgba(0,229,255,0.08); border: 1.5px solid rgba(0,229,255,0.25);
-    display: flex; align-items: center; justify-content: center;
-    margin: 0 auto 16px;
+    display: flex; align-items: center; justify-content: center; margin: 0 auto 16px;
   }
   .orb-dot { width: 14px; height: 14px; border-radius: 50%; background: var(--accent); animation: pulse 2.5s ease-in-out infinite; }
   @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.4;transform:scale(0.7)} }
-
   .title { font-family: var(--font-serif); font-weight: 900; font-size: 1.75rem; color: #e0f0f8; margin-bottom: 8px; }
   .subtitle { font-size: 0.82rem; color: var(--text-dim); line-height: 1.6; }
 
@@ -69,12 +52,10 @@ const css = `
   .divider-text { font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; }
 
   .google-btn {
-    width: 100%; padding: 12px;
-    background: var(--surface2); border: 1px solid var(--border2);
-    border-radius: var(--r-lg); color: var(--text);
-    font-family: var(--font-sans); font-size: 0.875rem; font-weight: 500;
-    cursor: pointer; display: flex; align-items: center; justify-content: center;
-    gap: 10px; transition: all 0.2s;
+    width: 100%; padding: 12px; background: var(--surface2);
+    border: 1px solid var(--border2); border-radius: var(--r-lg);
+    color: var(--text); font-family: var(--font-sans); font-size: 0.875rem; font-weight: 500;
+    cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; transition: all 0.2s;
   }
   .google-btn:hover { border-color: var(--btn); background: rgba(0,151,178,0.08); }
   .google-btn:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -82,20 +63,18 @@ const css = `
   .form { display: flex; flex-direction: column; gap: 10px; }
   .form-label { font-size: 0.72rem; font-weight: 600; color: var(--text-dim); letter-spacing: 0.5px; }
   .form-input {
-    width: 100%; padding: 12px 14px;
-    background: var(--surface2); border: 1px solid var(--border2);
-    border-radius: var(--r-lg); color: var(--text);
-    font-family: var(--font-sans); font-size: 0.875rem;
+    width: 100%; padding: 12px 14px; background: var(--surface2);
+    border: 1px solid var(--border2); border-radius: var(--r-lg);
+    color: var(--text); font-family: var(--font-sans); font-size: 0.875rem;
     outline: none; transition: border-color 0.2s;
   }
   .form-input:focus { border-color: var(--btn); }
   .form-input::placeholder { color: var(--text-muted); }
 
   .submit-btn {
-    width: 100%; padding: 13px;
-    background: var(--btn); border: none; border-radius: var(--r-lg);
-    color: #fff; font-family: var(--font-sans); font-size: 0.875rem; font-weight: 600;
-    cursor: pointer; transition: background 0.2s;
+    width: 100%; padding: 13px; background: var(--btn); border: none;
+    border-radius: var(--r-lg); color: #fff; font-family: var(--font-sans);
+    font-size: 0.875rem; font-weight: 600; cursor: pointer; transition: background 0.2s;
   }
   .submit-btn:hover { background: var(--btn-hover); }
   .submit-btn:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -105,33 +84,42 @@ const css = `
     border-radius: var(--r-lg); padding: 16px; text-align: center;
     font-size: 0.82rem; color: var(--accent); line-height: 1.6;
   }
-
   .error-box {
     background: rgba(229,80,57,0.06); border: 1px solid rgba(229,80,57,0.2);
-    border-radius: var(--r); padding: 10px 14px;
-    font-size: 0.78rem; color: #e55039;
+    border-radius: 8px; padding: 10px 14px; font-size: 0.78rem; color: #e55039;
   }
-
   .footer-text { font-size: 0.7rem; color: var(--text-muted); text-align: center; line-height: 1.6; }
+  @keyframes spin { to { transform: rotate(360deg); } }
 `
 
 function AuthPageInner() {
-  const [email, setEmail]               = useState('')
-  const [loading, setLoading]           = useState(false)
+  const [email, setEmail]                 = useState('')
+  const [loading, setLoading]             = useState(false)
   const [googleLoading, setGoogleLoading] = useState(false)
-  const [sent, setSent]                 = useState(false)
-  const [error, setError]               = useState<string | null>(null)
-  const router      = useRouter()
+  const [sent, setSent]                   = useState(false)
+  const [error, setError]                 = useState<string | null>(null)
+  const router       = useRouter()
   const searchParams = useSearchParams()
 
   // Redirect if already signed in
   useEffect(() => {
-    getSession().then(session => {
-      if (session) router.replace('/')
-    })
+    async function checkSession() {
+      try {
+        const { createClient } = await import('@supabase/supabase-js')
+        const supabase = createClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+        )
+        const { data } = await supabase.auth.getSession()
+        if (data.session) router.replace('/')
+      } catch {
+        // Ignore
+      }
+    }
+    checkSession()
   }, [router])
 
-  // Show error from callback redirect
+  // Show error from callback
   useEffect(() => {
     const err = searchParams.get('error')
     if (err === 'link_expired') setError('That link has expired. Please request a new one.')
@@ -151,16 +139,11 @@ function AuthPageInner() {
       )
       const { error } = await supabase.auth.signInWithOtp({
         email: email.trim(),
-        options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
-        },
+        options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
       })
-      if (error) {
-        setError(error.message)
-      } else {
-        setSent(true)
-      }
-    } catch (err) {
+      if (error) setError(error.message)
+      else setSent(true)
+    } catch {
       setError('Something went wrong. Please try again.')
     } finally {
       setLoading(false)
@@ -178,15 +161,9 @@ function AuthPageInner() {
       )
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
-        options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
-        },
+        options: { redirectTo: `${window.location.origin}/auth/callback` },
       })
-      if (error) {
-        setError(error.message)
-        setGoogleLoading(false)
-      }
-      // On success browser redirects — no need to setLoading(false)
+      if (error) { setError(error.message); setGoogleLoading(false) }
     } catch {
       setError('Google sign in failed. Please try again.')
       setGoogleLoading(false)
@@ -209,7 +186,6 @@ function AuthPageInner() {
 
           {error && <div className="error-box">{error}</div>}
 
-          {/* GOOGLE */}
           <button className="google-btn" onClick={handleGoogle} disabled={googleLoading || loading}>
             <svg width="18" height="18" viewBox="0 0 18 18">
               <path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.875 2.684-6.615z"/>
@@ -226,7 +202,6 @@ function AuthPageInner() {
             <div className="divider-line"/>
           </div>
 
-          {/* MAGIC LINK */}
           {sent ? (
             <div className="success-box">
               ✦ Magic link sent to <strong>{email}</strong><br/>
@@ -236,13 +211,9 @@ function AuthPageInner() {
             <form className="form" onSubmit={handleMagicLink}>
               <label className="form-label">Email address</label>
               <input
-                className="form-input"
-                type="email"
-                placeholder="you@example.com"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                required
-                disabled={loading}
+                className="form-input" type="email" placeholder="you@example.com"
+                value={email} onChange={e => setEmail(e.target.value)}
+                required disabled={loading}
               />
               <button className="submit-btn" type="submit" disabled={loading || !email.trim()}>
                 {loading ? 'Sending link...' : 'Send magic link'}
