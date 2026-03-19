@@ -1,30 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-const PUBLIC_PREFIX = '/auth'
-
+// Minimal proxy - auth handled client-side via Supabase localStorage session
 export async function proxy(request: NextRequest) {
-  const { pathname } = request.nextUrl
-
-  if (
-    pathname.startsWith(PUBLIC_PREFIX) ||
-    pathname.startsWith('/api/') ||
-    pathname.startsWith('/_next/') ||
-    pathname.startsWith('/favicon')
-  ) {
-    return NextResponse.next()
-  }
-
-  const cookies = request.cookies.getAll()
-  const hasAuth = cookies.some(c =>
-    c.name.startsWith('sb-') ||
-    c.name.includes('auth-token') ||
-    c.name.includes('supabase')
-  )
-
-  if (!hasAuth) {
-    return NextResponse.redirect(new URL('/auth', request.url))
-  }
-
   return NextResponse.next()
 }
 
