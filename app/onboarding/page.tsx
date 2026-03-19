@@ -2,8 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { getUser } from '@/lib/auth'
-import { getSupabaseClient, updateUserProfile, setMemory } from '@/lib/user'
+import { updateUserProfile, setMemory } from '@/lib/user'
 
 // Onboarding steps — ARBI asks, user answers
 const STEPS = [
@@ -195,13 +194,19 @@ export default function OnboardingPage() {
   const router = useRouter()
 
   useEffect(() => {
-    getUser().then(user => {
-      if (!user) {
-        router.replace('/auth')
+    // Read user ID directly from localStorage session
+    const lsKey = Object.keys(localStorage).find(k => k.startsWith('sb-') && k.endsWith('-auth-token'))
+    if (!lsKey) { router.replace('/auth'); return }
+    try {
+      const parsed = JSON.parse(localStorage.getItem(lsKey) || '{}')
+      if (parsed?.user?.id) {
+        setUserId(parsed.user.id)
       } else {
-        setUserId(user.id)
+        router.replace('/auth')
       }
-    })
+    } catch {
+      router.replace('/auth')
+    }
   }, [router])
 
   useEffect(() => {
@@ -233,18 +238,19 @@ export default function OnboardingPage() {
       // All steps done — save to Supabase
       setCompleting(true)
       if (userId) {
-        const supabase = getSupabaseClient()
+        const { getSupabase } = await import('@/lib/supabase')
+        const supabase = getSupabase()
         const stage = goalToStage(newAnswers['goal'] || '')
 
-        await updateUserProfile(supabase, userId, {
+        await updateUserProfile(supabase as any, userId, {
           name:     newAnswers['name'],
           location: newAnswers['location'],
           stage,
         })
 
-        await setMemory(supabase, userId, 'situation',       newAnswers['situation'] || '')
-        await setMemory(supabase, userId, 'primary_goal',    newAnswers['goal'] || '')
-        await setMemory(supabase, userId, 'onboarding_done', 'true')
+        await setMemory(supabase as any, userId, 'situation',       newAnswers['situation'] || '')
+        await setMemory(supabase as any, userId, 'primary_goal',    newAnswers['goal'] || '')
+        await setMemory(supabase as any, userId, 'onboarding_done', 'true')
       }
       setTimeout(() => router.replace('/'), 1500)
     }
