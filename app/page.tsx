@@ -393,33 +393,17 @@ export default function ARBIProduction() {
   useEffect(() => {
     async function init() {
       try {
-        const { getSupabase } = await import('@/lib/supabase')
-        const supabase = getSupabase()
-
-        // First try reading directly from localStorage (fastest, avoids timing issues)
-        let session = null
+        // Read session directly from localStorage — avoids timing issues with getSession()
         const lsKey = Object.keys(localStorage).find(k => k.startsWith('sb-') && k.endsWith('-auth-token'))
-        if (lsKey) {
-          try {
-            const raw = JSON.parse(localStorage.getItem(lsKey) || '{}')
-            if (raw.access_token && raw.expires_at && raw.expires_at > Date.now() / 1000) {
-              // Valid token in localStorage — refresh the client session from it
-              const { data } = await supabase.auth.getSession()
-              if (data.session) session = data.session
-            }
-          } catch { /* fall through to polling */ }
-        }
+        if (!lsKey) { router.replace('/auth'); return }
 
-        // Poll as fallback
-        if (!session) {
-          for (let i = 0; i < 10; i++) {
-            await new Promise(r => setTimeout(r, 500))
-            const { data } = await supabase.auth.getSession()
-            if (data.session) { session = data.session; break }
-          }
-        }
+        let parsed: any = null
+        try { parsed = JSON.parse(localStorage.getItem(lsKey) || '{}') } catch { router.replace('/auth'); return }
 
-        if (!session) { router.replace('/auth'); return }
+        if (!parsed?.access_token || !parsed?.user) { router.replace('/auth'); return }
+        if (parsed.expires_at && parsed.expires_at < Date.now() / 1000) { router.replace('/auth'); return }
+
+        const session = parsed
         sessionStorage.removeItem('arbi_just_authed')
 
         const user = session.user
@@ -436,7 +420,8 @@ export default function ARBIProduction() {
         setMemories(userMemories)
         setConversations(userConversations)
         setAuthLoading(false)
-      } catch {
+      } catch (e) {
+        console.error('Init error:', e)
         router.replace('/auth')
       }
     }
@@ -535,7 +520,13 @@ export default function ARBIProduction() {
     return ['Go deeper','Give me an example',"What's the other side?"]
   }
 
-  async function handleSignOut() { await signOut(); router.replace('/auth') }
+  async function handleSignOut() {
+    // Clear localStorage session
+    const lsKey = Object.keys(localStorage).find(k => k.startsWith('sb-') && k.endsWith('-auth-token'))
+    if (lsKey) localStorage.removeItem(lsKey)
+    await signOut()
+    router.replace('/auth')
+  }
 
   // ── SEND MESSAGE ──────────────────────────────────────────────
   async function sendMessage(text?: string) {
