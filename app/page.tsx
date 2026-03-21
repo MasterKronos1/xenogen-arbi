@@ -6,7 +6,7 @@ import {
   Plus, ChevronRight, Send, Menu, Zap,
   MoreHorizontal, ArrowRight, Mic, MicOff,
   User, Globe, BookOpen, ShoppingBag, Briefcase,
-  Compass, LogOut, Brain, X,
+  Compass, LogOut, Brain, X, Paperclip, FileText,
 } from 'lucide-react'
 import {
   getUserConversations, getUserMemory, getOrCreateUser,
@@ -280,6 +280,17 @@ const css = `
   @keyframes spin { to { transform: rotate(360deg); } }
 
   /* ── MOBILE ── */
+  /* ── FILE UPLOAD ── */
+  .file-chip { display: flex; align-items: center; gap: 8px; padding: 6px 12px; background: var(--surface2); border: 1px solid var(--border2); border-radius: var(--r); margin: 0 18px 8px; max-width: calc(100% - 36px); }
+  .file-chip-icon { flex-shrink: 0; color: var(--btn); }
+  .file-chip-name { font-size: 0.72rem; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; }
+  .file-chip-type { font-size: 0.58rem; padding: 1px 6px; background: var(--accent-soft); border: 1px solid rgba(0,229,255,0.15); border-radius: 100px; color: var(--accent); flex-shrink: 0; }
+  .file-chip-remove { width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--text-muted); border: none; background: none; font-size: 0.7rem; border-radius: 50%; transition: all 0.15s; flex-shrink: 0; }
+  .file-chip-remove:hover { background: var(--surface); color: var(--text-dim); }
+  .attach-btn { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border: 1px solid var(--border); background: none; border-radius: var(--r); cursor: pointer; color: var(--text-dim); transition: all 0.2s; }
+  .attach-btn:hover { border-color: var(--btn); color: var(--btn); }
+  .attach-btn.has-file { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+
   /* ── IMAGE GEN WIDGET ── */
   .gen-widget { border-radius: var(--r-lg); overflow: hidden; border: 1px solid var(--border); background: var(--surface2); max-width: 520px; }
   .gen-widget-processing { padding: 32px 24px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 14px; }
@@ -617,6 +628,9 @@ export default function ARBIProduction() {
   const [showObs, setShowObs]         = useState(false)
   const [showAgents, setShowAgents]   = useState(false)
   const [codePanel, setCodePanel]     = useState<{lang:string;code:string;output:string|null;running:boolean}|null>(null)
+  const [attachedFile, setAttachedFile] = useState<{name:string;type:string;content:string;mimeType:string;fileType:'image'|'text'|'audio'}|null>(null)
+  const [fileAnalyzing, setFileAnalyzing] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const [agentTask, setAgentTask]     = useState('')
   const [agentRunning, setAgentRunning] = useState(false)
   const [agentLogs, setAgentLogs]     = useState<{agent:string;symbol:string;name?:string;output:string;phase?:string}[]>([])
@@ -1036,6 +1050,128 @@ export default function ARBIProduction() {
     })
     const data = await res.json()
     return data.url
+  }
+
+  // ── FILE UPLOAD & ANALYSIS ───────────────────────────────────
+  async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    const name     = file.name
+    const mime     = file.type
+    const sizeMB   = file.size / 1024 / 1024
+
+    if (sizeMB > 10) {
+      alert('File too large. Max 10MB.')
+      return
+    }
+
+    // Determine file category
+    let fileType: 'image' | 'text' | 'audio' = 'text'
+    if (mime.startsWith('image/'))                         fileType = 'image'
+    else if (mime.startsWith('audio/'))                    fileType = 'audio'
+    else if (mime.includes('pdf') || mime.includes('doc') || mime.includes('csv') || mime.includes('text') || mime.includes('spreadsheet')) fileType = 'text'
+
+    try {
+      if (fileType === 'image') {
+        // Read as base64
+        const base64 = await new Promise<string>((res, rej) => {
+          const reader = new FileReader()
+          reader.onload  = () => res((reader.result as string).split(',')[1])
+          reader.onerror = rej
+          reader.readAsDataURL(file)
+        })
+        setAttachedFile({ name, type: mime, content: base64, mimeType: mime, fileType: 'image' })
+
+      } else if (fileType === 'audio') {
+        setAttachedFile({ name, type: mime, content: '', mimeType: mime, fileType: 'audio' })
+
+      } else {
+        // Read as text — handles PDF text layer, CSV, txt, docx (partial)
+        const text = await new Promise<string>((res, rej) => {
+          const reader = new FileReader()
+          reader.onload  = () => res(reader.result as string)
+          reader.onerror = rej
+          // Try text first, fall back to arraybuffer for binary
+          if (mime.includes('pdf') || mime.includes('doc')) {
+            reader.readAsText(file, 'utf-8')
+          } else {
+            reader.readAsText(file)
+          }
+        })
+        setAttachedFile({ name, type: mime, content: text, mimeType: mime, fileType: 'text' })
+      }
+    } catch {
+      alert('Could not read file. Try a different format.')
+    }
+
+    // Reset input so same file can be re-selected
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
+  async function sendWithFile() {
+    if (!attachedFile || fileAnalyzing) return
+    setFileAnalyzing(true)
+
+    const userMsg = input.trim() || `Analyze this file: ${attachedFile.name}`
+    const displayMsg = `📎 ${attachedFile.name}
+${userMsg}`
+
+    // Show user message immediately
+    const baseMessages: Message[] = started
+      ? messages
+      : [{role:'assistant', content: mode==='xeno' ? ARBI_WELCOME_XENO(profile?.name) : ARBI_WELCOME_OPEN, time: now()}]
+    if (!started) setStarted(true)
+
+    const userMessage: Message = { role: 'user', content: displayMsg, time: now() }
+    setMessages([...baseMessages, userMessage, { role: 'assistant', content: '', time: now() }])
+    setInput('')
+    setStreaming(true)
+    setPresenceState({breath:0.9,resonance:0.85,depth:0.8})
+
+    try {
+      const lsKey = Object.keys(localStorage).find(k => k.startsWith('sb-') && k.endsWith('-auth-token'))
+      const token = lsKey ? JSON.parse(localStorage.getItem(lsKey)||'{}')?.access_token : null
+
+      const res = await fetch('/api/analyze', {
+        method:  'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({
+          type:        attachedFile.fileType,
+          filename:    attachedFile.name,
+          content:     attachedFile.fileType === 'image'
+            ? { base64: attachedFile.content, mimeType: attachedFile.mimeType }
+            : { text: attachedFile.content },
+          userMessage: input.trim(),
+          mode,
+          accessToken: token,
+        }),
+      })
+
+      const data = await res.json()
+      const analysis = data.analysis || data.error || 'Analysis failed.'
+
+      setMessages(m => {
+        const c = [...m]
+        c[c.length-1] = {...c[c.length-1], content: analysis}
+        return c
+      })
+
+      // Speak if short enough
+      if (analysis.length < 500) speakText(analysis)
+
+    } catch {
+      setMessages(m => {
+        const c = [...m]
+        c[c.length-1] = {...c[c.length-1], content: 'File analysis failed. Please try again.'}
+        return c
+      })
+    } finally {
+      setFileAnalyzing(false)
+      setAttachedFile(null)
+      setStreaming(false)
+      setPresenceState({breath:0.6,resonance:0.7,depth:0.5})
+    }
   }
 
   // ── CODE EXECUTION ───────────────────────────────────────────
@@ -1472,12 +1608,31 @@ Copy the code to run locally.`} : null)
 
           <div className="input-section">
             <div className="input-inner">
+
+              {/* Hidden file input */}
+              <input ref={fileInputRef} type="file" style={{display:'none'}}
+                accept="image/*,.pdf,.doc,.docx,.csv,.txt,.xls,.xlsx,.mp3,.wav,.m4a,.ogg"
+                onChange={handleFileSelect}/>
+
+              {/* File attachment chip */}
+              {attachedFile && (
+                <div className="file-chip">
+                  <div className="file-chip-icon"><FileText size={13}/></div>
+                  <div className="file-chip-name">{attachedFile.name}</div>
+                  <div className="file-chip-type">{attachedFile.fileType}</div>
+                  <button className="file-chip-remove" onClick={()=>setAttachedFile(null)}>✕</button>
+                </div>
+              )}
+
               <div className="input-wrap">
                 <textarea ref={textareaRef} rows={1} value={input}
                   onChange={e=>{setInput(e.target.value);autoResize();if(speaking)stopSpeaking()}}
-                  onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage()}}}
-                  placeholder={mode==='xeno'?'Talk to ARBI — your guide...':'Ask ARBI anything...'}/>
+                  onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();attachedFile?sendWithFile():sendMessage()}}}
+                  placeholder={attachedFile?`Ask about ${attachedFile.name} or press Enter to analyze...`:mode==='xeno'?'Talk to ARBI — or attach a file...':'Ask ARBI anything — or attach a file...'}/>
                 <div className="input-btns">
+                  <button className={`attach-btn ${attachedFile?'has-file':''}`} onClick={()=>fileInputRef.current?.click()} title="Attach file">
+                    <Paperclip size={13}/>
+                  </button>
                   <button className={`mic-btn ${speaking?'recording':''}`}
                     onClick={()=>speaking?stopSpeaking():speakText(messages.filter(m=>m.role==='assistant').slice(-1)[0]?.content||'')}
                     title="Read last response">
@@ -1486,12 +1641,13 @@ Copy the code to run locally.`} : null)
                   <button className={`mic-btn ${recording?'recording':''}`} onClick={toggleRecording}>
                     {recording?<MicOff size={13}/>:<Mic size={13}/>}
                   </button>
-                  <button className="send-btn" onClick={()=>sendMessage()} disabled={streaming||!input.trim()}>
-                    <Send size={13}/>
+                  <button className="send-btn" onClick={()=>attachedFile?sendWithFile():sendMessage()}
+                    disabled={(streaming||fileAnalyzing)||(!input.trim()&&!attachedFile)}>
+                    {fileAnalyzing?<span style={{fontSize:'0.6rem'}}>⟳</span>:<Send size={13}/>}
                   </button>
                 </div>
               </div>
-              <div className="input-hint">ENTER to send · SHIFT+ENTER new line · Voice input available</div>
+              <div className="input-hint">ENTER to send · 📎 files · ▷ read aloud · 🎤 voice</div>
             </div>
           </div>
 
