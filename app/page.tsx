@@ -280,6 +280,16 @@ const css = `
   @keyframes spin { to { transform: rotate(360deg); } }
 
   /* ── MOBILE ── */
+  @keyframes heartbeat {
+    0%,100% { transform: scale(1); }
+    15%      { transform: scale(1.25); }
+    30%      { transform: scale(1); }
+    45%      { transform: scale(1.15); }
+  }
+
+  /* Hide old presence panel styles on mobile too */
+  .presence-panel { display: none !important; }
+
   @media (max-width: 680px) {
     .shell { grid-template-columns: 1fr; }
 
@@ -437,7 +447,11 @@ export default function ARBIProduction() {
       if (sigilSbRef.current) drawSigil(sigilSbRef.current, t, streaming, 'sm')
       if (sigilHdRef.current) drawSigil(sigilHdRef.current, t, streaming, 'sm')
       if (sigilWlRef.current) drawSigil(sigilWlRef.current, t, streaming, 'lg')
-      if (presenceRef.current) drawPresence(presenceRef.current, t, streaming, presenceState)
+      if (presenceRef.current) {
+        presenceRef.current.width  = 80
+        presenceRef.current.height = 18
+        drawPresence(presenceRef.current, t, streaming, presenceState)
+      }
       animRef.current = requestAnimationFrame(loop)
     }
     animRef.current = requestAnimationFrame(loop)
@@ -745,13 +759,51 @@ export default function ARBIProduction() {
             <button className="menu-btn" onClick={()=>setSidebarOpen(s=>!s)}><Menu size={15}/></button>
             <div className="header-presence">
               <div className="header-sigil"><canvas ref={sigilHdRef} width={36} height={36}/></div>
-              <div>
+              <div style={{display:'flex',flexDirection:'column',gap:4}}>
                 <div className="header-name">ARBI</div>
-                <div className="header-sensing">{streaming?sensingText:`${mode==='xeno'?'XenoGuide':'Open'} · Ready`}</div>
+                <div style={{display:'flex',alignItems:'center',gap:8}}>
+                  {/* Mini waveform */}
+                  <canvas ref={presenceRef} width={80} height={18} style={{opacity:0.7}}/>
+                  {/* Bio indicators — minimal stroke icons */}
+                  <div style={{display:'flex',gap:8,alignItems:'center'}}>
+                    {/* Heart — Presence */}
+                    <div style={{display:'flex',alignItems:'center',gap:3}} title="Presence">
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none"
+                        stroke={`rgba(0,229,255,${0.25+presenceState.breath*0.75})`} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M12 21C12 21 3 14 3 8a4 4 0 0 1 8-1 1 1 0 0 0 2 0 4 4 0 0 1 8 1c0 6-9 13-9 13z"/>
+                      </svg>
+                      <span style={{fontSize:'0.46rem',color:`rgba(0,229,255,${0.25+presenceState.breath*0.75})`,fontFamily:'var(--font-mono)',letterSpacing:'0.5px'}}>
+                        {Math.round(presenceState.breath*100)}
+                      </span>
+                    </div>
+                    {/* Brain — Clarity */}
+                    <div style={{display:'flex',alignItems:'center',gap:3}} title="Clarity">
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none"
+                        stroke={`rgba(0,229,255,${0.25+presenceState.resonance*0.75})`} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96-.46 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 4.44-1.04z"/>
+                        <path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96-.46 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24A2.5 2.5 0 0 0 14.5 2z"/>
+                      </svg>
+                      <span style={{fontSize:'0.46rem',color:`rgba(0,229,255,${0.25+presenceState.resonance*0.75})`,fontFamily:'var(--font-mono)',letterSpacing:'0.5px'}}>
+                        {Math.round(presenceState.resonance*100)}
+                      </span>
+                    </div>
+                    {/* Body — Attunement */}
+                    <div style={{display:'flex',alignItems:'center',gap:3}} title="Attunement">
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none"
+                        stroke={`rgba(0,229,255,${0.25+presenceState.depth*0.75})`} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="12" cy="5" r="2"/>
+                        <path d="M12 8v5m-3 0v4m6-4v4M9 13H7l1-5h8l1 5h-2"/>
+                      </svg>
+                      <span style={{fontSize:'0.46rem',color:`rgba(0,229,255,${0.25+presenceState.depth*0.75})`,fontFamily:'var(--font-mono)',letterSpacing:'0.5px'}}>
+                        {Math.round(presenceState.depth*100)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
             <div className="header-right">
-              <button className={`hbtn ${showObs?'active':''}`} onClick={()=>setShowObs(s=>!s)} title="ARBI's observations"><Brain size={15}/></button>
+              <button className={`hbtn ${showObs?'active':''}`} onClick={()=>setShowObs(s=>!s)} title="ARBI observations"><Brain size={15}/></button>
               <button className="hbtn"><MoreHorizontal size={15}/></button>
             </div>
           </div>
