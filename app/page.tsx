@@ -37,7 +37,7 @@ const SENSING_PHRASES = [
 ]
 
 // ── TYPES ─────────────────────────────────────────────────────────
-type Mode    = 'xeno' | 'open'
+type Mode    = 'xeno' | 'open' | 'agents'
 type Message = { role: 'user' | 'assistant'; content: string; time?: string; suggestions?: string[] }
 
 const PLATFORM_LINKS = [
@@ -280,6 +280,76 @@ const css = `
   @keyframes spin { to { transform: rotate(360deg); } }
 
   /* ── MOBILE ── */
+  /* ── AGENTS TAB ── */
+  .agents-shell { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+  .agents-split { flex: 1; display: grid; grid-template-columns: 320px 1fr; overflow: hidden; gap: 0; }
+
+  /* Agent nodes visualizer */
+  .agent-viz { background: var(--surface); border-right: 1px solid var(--border); padding: 24px; display: flex; flex-direction: column; gap: 20px; overflow-y: auto; }
+  .agent-viz-title { font-size: 0.58rem; font-weight: 600; color: var(--text-muted); letter-spacing: 2px; text-transform: uppercase; }
+  .agent-nodes { display: flex; flex-direction: column; gap: 0; position: relative; }
+  .agent-node { padding: 16px; border-radius: var(--r-lg); border: 1px solid var(--border); background: var(--surface2); display: flex; align-items: flex-start; gap: 12px; transition: all 0.3s; position: relative; }
+  .agent-node.active { border-color: var(--accent); background: var(--accent-soft); }
+  .agent-node.done   { border-color: var(--border2); opacity: 0.7; }
+  .agent-connector { width: 1px; height: 20px; background: var(--border); margin: 0 auto; }
+  .agent-symbol { font-size: 1.2rem; color: var(--text-muted); line-height: 1; margin-top: 2px; flex-shrink: 0; transition: color 0.3s; }
+  .agent-node.active .agent-symbol { color: var(--accent); animation: agentPulse 1s ease-in-out infinite; }
+  @keyframes agentPulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+  .agent-info { flex: 1; min-width: 0; }
+  .agent-name { font-size: 0.78rem; font-weight: 600; color: var(--text); margin-bottom: 3px; }
+  .agent-role { font-size: 0.65rem; color: var(--text-dim); line-height: 1.4; }
+  .agent-status { font-size: 0.58rem; color: var(--accent); margin-top: 4px; font-style: italic; }
+  .agent-node.active .agent-thinking { display: flex; gap: 3px; margin-top: 6px; }
+  .agent-thinking { display: none; }
+  .at { width: 4px; height: 4px; border-radius: 50%; background: var(--accent); animation: td 1.2s ease-in-out infinite; }
+  .at:nth-child(2){animation-delay:.2s}.at:nth-child(3){animation-delay:.4s}
+
+  /* CMD Terminal */
+  .cmd-shell { display: flex; flex-direction: column; overflow: hidden; background: #020c10; }
+  .cmd-header { padding: 8px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px; background: var(--surface); flex-shrink: 0; }
+  .cmd-dot { width: 10px; height: 10px; border-radius: 50%; }
+  .cmd-title { font-size: 0.65rem; color: var(--text-muted); font-family: var(--font-mono); margin-left: 4px; }
+  .cmd-log { flex: 1; overflow-y: auto; padding: 16px; font-family: var(--font-mono); font-size: 0.72rem; line-height: 1.8; color: #4a8a6a; display: flex; flex-direction: column; gap: 2px; }
+  .cmd-log::-webkit-scrollbar { width: 3px; }
+  .cmd-line { display: flex; gap: 8px; animation: cmdIn 0.15s ease; white-space: pre-wrap; word-break: break-word; }
+  @keyframes cmdIn { from{opacity:0;transform:translateX(-4px)} to{opacity:1;transform:translateX(0)} }
+  .cmd-prompt { color: #00e5ff; flex-shrink: 0; }
+  .cmd-agent  { color: #f0c040; flex-shrink: 0; }
+  .cmd-text   { color: #7ab87a; flex: 1; }
+  .cmd-system { color: #4a6a7a; }
+  .cmd-final  { color: #c8dde8; }
+  .cmd-error  { color: #e55039; }
+  .cmd-input-row { padding: 10px 16px; border-top: 1px solid var(--border); display: flex; align-items: center; gap: 8px; background: var(--surface); flex-shrink: 0; }
+  .cmd-prompt-label { color: #00e5ff; font-family: var(--font-mono); font-size: 0.72rem; flex-shrink: 0; }
+  .cmd-input-field { flex: 1; background: transparent; border: none; color: #7ab87a; font-family: var(--font-mono); font-size: 0.72rem; outline: none; }
+  .cmd-input-field::placeholder { color: #1a3040; }
+  .cmd-run-btn { padding: 5px 12px; background: rgba(0,229,255,0.1); border: 1px solid rgba(0,229,255,0.2); border-radius: var(--r); font-size: 0.65rem; color: var(--accent); cursor: pointer; font-family: var(--font-mono); transition: all 0.15s; }
+  .cmd-run-btn:hover { background: rgba(0,229,255,0.18); }
+  .cmd-run-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+  /* Agent task input */
+  .agent-task-input { padding: 16px; border-top: 1px solid var(--border); background: var(--bg); display: flex; gap: 8px; flex-shrink: 0; }
+  .agent-task-field { flex: 1; padding: 10px 14px; background: var(--surface); border: 1px solid var(--border2); border-radius: var(--r-lg); color: var(--text); font-family: var(--font-sans); font-size: 0.875rem; outline: none; transition: border-color 0.2s; }
+  .agent-task-field:focus { border-color: var(--btn); }
+  .agent-task-field::placeholder { color: var(--text-muted); }
+  .agent-run-btn { padding: 10px 18px; background: var(--btn); border: none; border-radius: var(--r-lg); color: #fff; font-family: var(--font-sans); font-size: 0.82rem; font-weight: 600; cursor: pointer; transition: background 0.2s; white-space: nowrap; }
+  .agent-run-btn:hover { background: var(--btn-hover); }
+  .agent-run-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* Message actions */
+  .msg-actions { display: flex; gap: 4px; opacity: 0; transition: opacity 0.2s; }
+  .msg-content:hover .msg-actions { opacity: 1; }
+  .msg-action-btn { width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; background: none; border: none; cursor: pointer; color: var(--text-muted); border-radius: 4px; transition: all 0.15s; font-size: 0.65rem; }
+  .msg-action-btn:hover { background: var(--surface2); color: var(--text-dim); }
+
+  /* Generative widgets */
+  .gen-image-wrap { border-radius: var(--r-lg); overflow: hidden; border: 1px solid var(--border); background: var(--surface2); }
+  .gen-image { width: 100%; display: block; max-height: 400px; object-fit: cover; }
+  .gen-image-loading { padding: 40px; text-align: center; color: var(--text-muted); font-size: 0.78rem; }
+  .gen-actions { display: flex; gap: 6px; padding: 10px 12px; border-top: 1px solid var(--border); flex-wrap: wrap; }
+  .gen-action { padding: 4px 12px; background: var(--surface); border: 1px solid var(--border2); border-radius: 100px; font-size: 0.65rem; color: var(--text-dim); cursor: pointer; transition: all 0.15s; font-family: var(--font-sans); }
+  .gen-action:hover { border-color: var(--btn); color: var(--btn); }
+
   @keyframes heartbeat {
     0%,100% { transform: scale(1); }
     15%      { transform: scale(1.25); }
@@ -379,6 +449,14 @@ export default function ARBIProduction() {
   const [sensingText, setSensingText] = useState('')
   const [recording, setRecording]     = useState(false)
   const [showObs, setShowObs]         = useState(false)
+  const [agentTask, setAgentTask]     = useState('')
+  const [agentRunning, setAgentRunning] = useState(false)
+  const [agentLogs, setAgentLogs]     = useState<{agent:string;symbol:string;output:string;phase?:string}[]>([])
+  const [agentFinal, setAgentFinal]   = useState<string|null>(null)
+  const [activeAgent, setActiveAgent] = useState<string|null>(null)
+  const [speaking, setSpeaking]       = useState(false)
+  const [cmdInput, setCmdInput]       = useState('')
+  const agentLogRef = useRef<HTMLDivElement>(null)
   const [presenceState, setPresenceState] = useState({breath:0.6,resonance:0.7,depth:0.5})
   const [loadingConv, setLoadingConv] = useState(false)
 
@@ -571,6 +649,115 @@ export default function ARBIProduction() {
     return ['Go deeper','Give me an example',"What's the other side?"]
   }
 
+  // ── TEXT TO SPEECH ───────────────────────────────────────────
+  function speakText(text: string) {
+    if (!window.speechSynthesis) return
+    window.speechSynthesis.cancel()
+    const clean = text.replace(/[#*`_~>]/g, '').replace(/\[.*?]/g, '').trim()
+    const utt   = new SpeechSynthesisUtterance(clean)
+    utt.lang  = 'en-ZA'
+    utt.rate  = 0.95
+    utt.pitch = 1.0
+    const voices = window.speechSynthesis.getVoices()
+    const preferred = voices.find(v => v.lang.includes('en') && v.name.toLowerCase().includes('female'))
+      || voices.find(v => v.lang.includes('en'))
+    if (preferred) utt.voice = preferred
+    utt.onstart = () => setSpeaking(true)
+    utt.onend   = () => setSpeaking(false)
+    utt.onerror = () => setSpeaking(false)
+    window.speechSynthesis.speak(utt)
+  }
+
+  function stopSpeaking() {
+    window.speechSynthesis?.cancel()
+    setSpeaking(false)
+  }
+
+  // ── AGENT PIPELINE ────────────────────────────────────────────
+  async function runAgentPipeline(task: string) {
+    if (!task.trim() || agentRunning) return
+    setAgentRunning(true)
+    setAgentLogs([])
+    setAgentFinal(null)
+    setActiveAgent('analyst')
+
+    try {
+      const lsKey = Object.keys(localStorage).find(k => k.startsWith('sb-') && k.endsWith('-auth-token'))
+      const token = lsKey ? JSON.parse(localStorage.getItem(lsKey) || '{}')?.access_token : null
+
+      const res = await fetch('/api/agents', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ task, accessToken: token }),
+      })
+
+      const reader = res.body?.getReader()
+      const dec    = new TextDecoder()
+      if (!reader) return
+
+      let buffer = ''
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += dec.decode(value)
+        const lines = buffer.split('\n\n')
+        buffer = lines.pop() || ''
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue
+          try {
+            const data = JSON.parse(line.slice(6))
+            if (data.event === 'status') {
+              setActiveAgent(data.agent)
+            } else if (data.event === 'agent_output') {
+              setAgentLogs(prev => [...prev, {
+                agent:  data.agent,
+                symbol: data.symbol,
+                output: data.output,
+              }])
+              if (agentLogRef.current) {
+                agentLogRef.current.scrollTop = agentLogRef.current.scrollHeight
+              }
+            } else if (data.event === 'complete') {
+              setAgentFinal(data.final)
+              setActiveAgent(null)
+            } else if (data.event === 'error') {
+              setAgentLogs(prev => [...prev, { agent: 'system', symbol: '✗', output: data.message }])
+            }
+          } catch { /* skip malformed */ }
+        }
+      }
+    } catch (err) {
+      setAgentLogs(prev => [...prev, { agent: 'system', symbol: '✗', output: 'Pipeline connection failed.' }])
+    } finally {
+      setAgentRunning(false)
+      setActiveAgent(null)
+    }
+  }
+
+  // ── DETECT GENERATIVE INTENT ──────────────────────────────────
+  function detectGenerativeIntent(text: string): { type: string; prompt: string } | null {
+    const lower = text.toLowerCase()
+    if (lower.includes('generate image') || lower.includes('create image') || lower.includes('draw ') || lower.includes('visualize ')) {
+      const prompt = text.replace(/generate image|create image|draw|visualize/gi, '').trim()
+      return { type: 'image', prompt }
+    }
+    if (lower.includes('read this') || lower.includes('read that') || lower.includes('speak this') || lower.includes('read aloud')) {
+      return { type: 'speech', prompt: text }
+    }
+    return null
+  }
+
+  async function generateImage(prompt: string): Promise<string> {
+    const res  = await fetch('/api/generate', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ type: 'image', prompt }),
+    })
+    const data = await res.json()
+    return data.url
+  }
+
   async function handleSignOut() {
     // Clear localStorage session
     const lsKey = Object.keys(localStorage).find(k => k.startsWith('sb-') && k.endsWith('-auth-token'))
@@ -640,7 +827,24 @@ export default function ARBIProduction() {
         setMessages(m=>{const c=[...m];c[c.length-1]={...c[c.length-1],content:fullResponse};return c})
       }
 
-      const suggestions = generateSuggestions(fullResponse, mode)
+      // Handle generative image tag from ARBI
+      let finalResponse = fullResponse
+      const genMatch = fullResponse.match(/\[GENERATE_IMAGE:([^\]]+)\]/)
+      if (genMatch) {
+        const imgPrompt = genMatch[1].trim()
+        try {
+          const imgRes  = await fetch('/api/generate', {
+            method:  'POST',
+            headers: {'Content-Type':'application/json'},
+            body:    JSON.stringify({ type: 'image', prompt: imgPrompt }),
+          })
+          const imgData = await imgRes.json()
+          finalResponse = fullResponse.replace(genMatch[0], '[IMG:' + imgData.url + ']')
+          setMessages(m=>{const c=[...m];c[c.length-1]={...c[c.length-1],content:finalResponse};return c})
+        } catch { /* keep text */ }
+      }
+
+      const suggestions = generateSuggestions(finalResponse, mode)
       setMessages(m=>{const c=[...m];c[c.length-1]={...c[c.length-1],suggestions};return c})
 
       // Refresh memories after response
@@ -668,7 +872,9 @@ export default function ARBIProduction() {
   }
 
   function switchMode(newMode: Mode) {
-    setMode(newMode); setStarted(false); setMessages([]); setInput(''); setConversationId(null); setActiveConvId(null)
+    setMode(newMode); setStarted(false); setMessages([]); setInput('')
+    setConversationId(null); setActiveConvId(null)
+    setAgentLogs([]); setAgentFinal(null); setActiveAgent(null); setAgentTask('')
   }
 
   function startNew() {
@@ -720,9 +926,10 @@ export default function ARBIProduction() {
             <button className="new-btn" onClick={startNew} title="New conversation"><Plus size={13} strokeWidth={2.5}/></button>
           </div>
 
-          <div className="mode-toggle">
+          <div className="mode-toggle" style={{gridTemplateColumns:'1fr 1fr 1fr'}}>
             <button className={`mode-btn ${mode==='xeno'?'active':''}`} onClick={()=>switchMode('xeno')}><Compass size={11}/>XenoGuide</button>
             <button className={`mode-btn ${mode==='open'?'active':''}`} onClick={()=>switchMode('open')}><Globe size={11}/>Open</button>
+            <button className={`mode-btn ${mode==='agents'?'active':''}`} onClick={()=>switchMode('agents')} style={{color: mode==='agents'?'var(--warn)':''}}>⬡ Agents</button>
           </div>
 
           {mode==='xeno' && (
@@ -892,7 +1099,91 @@ export default function ARBIProduction() {
             </div>
           )}
 
-          <div className="chat-area">
+          {/* AGENTS TAB */}
+          {mode === 'agents' && (
+            <div className="agents-shell">
+              <div className="agents-split">
+                <div className="agent-viz">
+                  <div className="agent-viz-title">Agent Pipeline</div>
+                  <div className="agent-nodes">
+                    {[
+                      {id:'analyst',    symbol:'◈', name:'Analyst',     role:'Breaks down the task and identifies requirements'},
+                      {id:'navigator',  symbol:'◉', name:'Navigator',   role:'Plans execution route and selects approaches'},
+                      {id:'synthesizer',symbol:'◎', name:'Synthesizer', role:'Combines outputs into a clear response'},
+                    ].map((ag, i) => (
+                      <div key={ag.id}>
+                        <div className={`agent-node ${activeAgent===ag.id?'active':agentLogs.some(l=>l.agent===ag.id)?'done':''}`}>
+                          <div className="agent-symbol">{ag.symbol}</div>
+                          <div className="agent-info">
+                            <div className="agent-name">{ag.name}</div>
+                            <div className="agent-role">{ag.role}</div>
+                            {activeAgent===ag.id&&<div className="agent-thinking"><div className="at"/><div className="at"/><div className="at"/></div>}
+                            {agentLogs.find(l=>l.agent===ag.id)&&activeAgent!==ag.id&&<div className="agent-status">✓ Complete</div>}
+                          </div>
+                        </div>
+                        {i<2&&<div className="agent-connector"/>}
+                      </div>
+                    ))}
+                  </div>
+                  {agentFinal&&(
+                    <div style={{marginTop:16}}>
+                      <div className="agent-viz-title" style={{marginBottom:8}}>Final Output</div>
+                      <div style={{background:'var(--surface2)',border:'1px solid var(--border)',borderRadius:'var(--r-lg)',padding:'14px',fontSize:'0.75rem',color:'var(--text-dim)',lineHeight:1.6,maxHeight:200,overflowY:'auto'}}
+                        dangerouslySetInnerHTML={{__html:renderMarkdown(agentFinal)}}/>
+                      <div style={{display:'flex',gap:6,marginTop:8}}>
+                        <button className="gen-action" onClick={()=>speakText(agentFinal)}>▷ Read</button>
+                        <button className="gen-action" onClick={()=>navigator.clipboard.writeText(agentFinal)}>⎘ Copy</button>
+                        <button className="gen-action" onClick={()=>{switchMode('open');setTimeout(()=>sendMessage(agentFinal.slice(0,200)),100)}}>→ Chat</button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <div className="cmd-shell">
+                  <div className="cmd-header">
+                    <div className="cmd-dot" style={{background:'#e55039'}}/><div className="cmd-dot" style={{background:'#f0c040'}}/><div className="cmd-dot" style={{background:'#4ac74a'}}/>
+                    <div className="cmd-title">xenogen-arbi — agent-pipeline</div>
+                  </div>
+                  <div className="cmd-log" ref={agentLogRef}>
+                    {agentLogs.length===0&&!agentRunning&&<div className="cmd-line"><span className="cmd-prompt">$</span><span className="cmd-system"> ARBI agent pipeline ready. Enter a task below.</span></div>}
+                    {agentRunning&&agentLogs.length===0&&<div className="cmd-line"><span className="cmd-prompt">$</span><span className="cmd-system"> Initialising pipeline...</span></div>}
+                    {agentLogs.map((log,i)=>(
+                      <div key={i}>
+                        <div className="cmd-line"><span className="cmd-agent">[{log.symbol} {log.name||log.agent}]</span><span className="cmd-prompt"> →</span></div>
+                        {log.output.split('
+').map((line,j)=>(
+                          <div key={j} className="cmd-line" style={{paddingLeft:16}}>
+                            <span className={log.agent==='system'?'cmd-error':'cmd-text'}>{line}</span>
+                          </div>
+                        ))}
+                        <div className="cmd-line"><span className="cmd-system">{'─'.repeat(40)}</span></div>
+                      </div>
+                    ))}
+                    {agentFinal&&<div className="cmd-line"><span className="cmd-prompt">✓</span><span className="cmd-final"> Pipeline complete.</span></div>}
+                    {activeAgent&&<div className="cmd-line"><span className="cmd-prompt">▶</span><span className="cmd-system"> {activeAgent} processing...</span></div>}
+                  </div>
+                  <div className="cmd-input-row">
+                    <span className="cmd-prompt-label">$</span>
+                    <input className="cmd-input-field" placeholder="type a note..."
+                      value={cmdInput} onChange={e=>setCmdInput(e.target.value)}
+                      onKeyDown={e=>{if(e.key==='Enter'&&cmdInput.trim()){setAgentLogs(prev=>[...prev,{agent:'user',symbol:'>',name:'User',output:cmdInput}]);setCmdInput('')}}}/>
+                    <button className="cmd-run-btn" disabled={agentRunning} onClick={()=>runAgentPipeline(agentTask)}>{agentRunning?'running...':'run'}</button>
+                  </div>
+                </div>
+              </div>
+              <div className="agent-task-input">
+                <input className="agent-task-field"
+                  placeholder="Describe a task for the agent pipeline..."
+                  value={agentTask} onChange={e=>setAgentTask(e.target.value)}
+                  onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();runAgentPipeline(agentTask)}}}
+                  disabled={agentRunning}/>
+                <button className="agent-run-btn" onClick={()=>runAgentPipeline(agentTask)} disabled={agentRunning||!agentTask.trim()}>
+                  {agentRunning?'Running...':'▶ Run'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {mode !== 'agents' && <div className="chat-area">
             {!started ? (
               <div className="welcome">
                 <div className="welcome-sigil"><canvas ref={sigilWlRef} width={80} height={80}/></div>
@@ -923,12 +1214,38 @@ export default function ARBIProduction() {
                       </div>
                     ) : (
                       <div className="msg-content">
-                        <div className={`msg-bubble ${msg.role==='assistant'?'arbi':'user'}`}
-                          {...(msg.role==='assistant'
-                            ?{dangerouslySetInnerHTML:{__html:renderMarkdown(msg.content)}}
-                            :{children:msg.content}
-                          )}/>
-                        <div className="msg-time">{msg.time}</div>
+                        {/* Generative image widget */}
+                        {msg.role==='assistant' && msg.content.includes('[IMG:') ? (
+                          <div className="gen-image-wrap">
+                            <img className="gen-image" src={msg.content.match(/\[IMG:(.*?)\]/)?.[1] || ''} alt="Generated" onError={(e)=>(e.currentTarget.style.display='none')}/>
+                            <div className="gen-actions">
+                              <button className="gen-action" onClick={()=>window.open(msg.content.match(/\[IMG:(.*?)\]/)?.[1]||'','_blank')}>↗ Open full</button>
+                              <button className="gen-action" onClick={()=>{const a=document.createElement('a');a.href=msg.content.match(/\[IMG:(.*?)\]/)?.[1]||'';a.download='arbi-image.jpg';a.click()}}>↓ Download</button>
+                              <button className="gen-action" onClick={()=>navigator.clipboard.writeText(msg.content.match(/\[IMG:(.*?)\]/)?.[1]||'')}>⎘ Copy URL</button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className={`msg-bubble ${msg.role==='assistant'?'arbi':'user'}`}
+                            {...(msg.role==='assistant'
+                              ?{dangerouslySetInnerHTML:{__html:renderMarkdown(msg.content)}}
+                              :{children:msg.content}
+                            )}/>
+                        )}
+                        <div style={{display:'flex',alignItems:'center',gap:6,marginTop:2}}>
+                          <div className="msg-time">{msg.time}</div>
+                          {msg.role==='assistant' && msg.content && (
+                            <div className="msg-actions">
+                              <button className="msg-action-btn" title="Read aloud"
+                                onClick={()=>speaking?stopSpeaking():speakText(msg.content)}>
+                                {speaking?'◼':'▷'}
+                              </button>
+                              <button className="msg-action-btn" title="Copy"
+                                onClick={()=>navigator.clipboard.writeText(msg.content)}>
+                                ⎘
+                              </button>
+                            </div>
+                          )}
+                        </div>
                         {msg.role==='assistant'&&msg.suggestions&&!streaming&&(
                           <div className="suggestions">
                             {msg.suggestions.map(s=><button key={s} className="sug-btn" onClick={()=>sendMessage(s)}>{s}</button>)}
@@ -942,9 +1259,9 @@ export default function ARBIProduction() {
                 <div ref={endRef}/>
               </>
             )}
-          </div>
+          </div>}
 
-          <div className="input-section">
+          {mode !== 'agents' && <div className="input-section">
             <div className="input-inner">
               <div className="input-wrap">
                 <textarea ref={textareaRef} rows={1} value={input}
@@ -952,6 +1269,11 @@ export default function ARBIProduction() {
                   onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage()}}}
                   placeholder={mode==='xeno'?'Talk to ARBI — your guide...':'Ask ARBI anything...'}/>
                 <div className="input-btns">
+                  <button className={`mic-btn ${speaking?'recording':''}`}
+                    onClick={()=>speaking?stopSpeaking():speakText(messages.filter(m=>m.role==='assistant').slice(-1)[0]?.content||'')}
+                    title="Read last response">
+                    <span style={{fontSize:'0.75rem',lineHeight:1}}>{speaking?'◼':'▷'}</span>
+                  </button>
                   <button className={`mic-btn ${recording?'recording':''}`} onClick={toggleRecording}>
                     {recording?<MicOff size={13}/>:<Mic size={13}/>}
                   </button>
@@ -962,7 +1284,7 @@ export default function ARBIProduction() {
               </div>
               <div className="input-hint">ENTER to send · SHIFT+ENTER new line · Voice input available</div>
             </div>
-          </div>
+          </div>}
 
         </div>
       </div>
