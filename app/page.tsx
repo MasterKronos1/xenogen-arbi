@@ -1418,12 +1418,12 @@ Copy the code to run locally.`} : null)
                       </div>
                     ) : (
                       <div className="msg-content">
-                        (() => {
-                            const imgMatch = msg.content.match(new RegExp('\\[IMG:([^\\]]+)\\]'))
-                            const imgUrl   = imgMatch?.[1] || ''
-                            const prompt   = msg.content.replace(imgMatch?.[0]||'','').replace(/\*\*/g,'').trim()
-                            return imgUrl ? <GenImageWidget url={imgUrl} prompt={prompt}/> : null
-                          })() : (
+                        {msg.content.includes('[IMG:') ? (
+                          <GenImageWidget
+                            url={(msg.content.match(new RegExp('\\[IMG:([^\\]]+)\\]'))||[])[1]||''}
+                            prompt={msg.content.replace((msg.content.match(new RegExp('\\[IMG:[^\\]]+\\]'))||[''])[0],'').replace(/[*]/g,'').trim()}
+                          />
+                        ) : (
                           <div className={`msg-bubble ${msg.role==='assistant'?'arbi':'user'}`}
                             {...(msg.role==='assistant'
                               ?{dangerouslySetInnerHTML:{__html:renderMarkdown(msg.content)}}
