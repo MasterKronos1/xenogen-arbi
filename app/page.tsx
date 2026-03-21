@@ -548,6 +548,10 @@ export default function ARBIProduction() {
     setPresenceState({breath:0.9,resonance:0.85,depth:0.8})
 
     try {
+      // Get access token from localStorage to pass to API route
+      const lsKey = Object.keys(localStorage).find(k => k.startsWith('sb-') && k.endsWith('-auth-token'))
+      const accessToken = lsKey ? JSON.parse(localStorage.getItem(lsKey) || '{}')?.access_token : null
+
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: {'Content-Type':'application/json'},
@@ -556,6 +560,7 @@ export default function ARBIProduction() {
           mode,
           userId:         authUser?.id || 'anonymous',
           conversationId,
+          accessToken,
         }),
       })
 
