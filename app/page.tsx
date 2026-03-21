@@ -451,7 +451,7 @@ export default function ARBIProduction() {
   const [showObs, setShowObs]         = useState(false)
   const [agentTask, setAgentTask]     = useState('')
   const [agentRunning, setAgentRunning] = useState(false)
-  const [agentLogs, setAgentLogs]     = useState<{agent:string;symbol:string;output:string;phase?:string}[]>([])
+  const [agentLogs, setAgentLogs]     = useState<{agent:string;symbol:string;name?:string;output:string;phase?:string}[]>([])
   const [agentFinal, setAgentFinal]   = useState<string|null>(null)
   const [activeAgent, setActiveAgent] = useState<string|null>(null)
   const [speaking, setSpeaking]       = useState(false)
