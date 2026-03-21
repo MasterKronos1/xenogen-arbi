@@ -280,6 +280,69 @@ const css = `
   @keyframes spin { to { transform: rotate(360deg); } }
 
   /* ── MOBILE ── */
+  /* ── AGENTS SLIDE PANEL ── */
+  .agents-panel {
+    position: fixed; top: 0; right: 0; bottom: 0;
+    width: 480px; z-index: 200;
+    background: var(--surface);
+    border-left: 1px solid var(--border);
+    display: flex; flex-direction: column;
+    transform: translateX(100%);
+    transition: transform 0.3s cubic-bezier(0.4,0,0.2,1);
+    box-shadow: -8px 0 32px rgba(0,0,0,0.4);
+  }
+  .agents-panel.open { transform: translateX(0); }
+  .agents-panel-overlay {
+    display: none; position: fixed; inset: 0; z-index: 199;
+    background: rgba(0,0,0,0.3); backdrop-filter: blur(2px);
+  }
+  .agents-panel-overlay.visible { display: block; }
+  .agents-panel-header {
+    height: 54px; display: flex; align-items: center; padding: 0 18px;
+    border-bottom: 1px solid var(--border); gap: 10px; flex-shrink: 0;
+  }
+  .agents-panel-title { font-family: var(--font-serif); font-weight: 700; font-size: 0.95rem; color: var(--text); flex: 1; }
+  .agents-close { width: 28px; height: 28px; background: none; border: none; cursor: pointer; color: var(--text-dim); border-radius: var(--r); display: flex; align-items: center; justify-content: center; transition: all 0.15s; }
+  .agents-close:hover { background: var(--surface2); color: var(--text); }
+
+  /* Agent canvas area */
+  .agent-canvas-area { height: 180px; position: relative; border-bottom: 1px solid var(--border); flex-shrink: 0; background: #020c10; overflow: hidden; }
+  .agent-canvas-area canvas { position: absolute; inset: 0; width: 100% !important; height: 100% !important; }
+
+  /* ── CODE SPLIT PANEL ── */
+  .main-with-code { display: grid !important; grid-template-columns: 1fr 420px; }
+  .code-panel {
+    border-left: 1px solid var(--border);
+    display: flex; flex-direction: column;
+    background: #020c10; overflow: hidden;
+  }
+  .code-panel-header {
+    height: 42px; display: flex; align-items: center; padding: 0 14px;
+    border-bottom: 1px solid var(--border); gap: 8px; flex-shrink: 0;
+    background: var(--surface);
+  }
+  .code-lang-badge { font-size: 0.6rem; padding: 2px 8px; background: var(--accent-soft); border: 1px solid rgba(0,229,255,0.15); border-radius: 100px; color: var(--accent); font-family: var(--font-mono); }
+  .code-panel-actions { display: flex; gap: 4px; margin-left: auto; }
+  .code-action { padding: 4px 10px; background: var(--surface2); border: 1px solid var(--border2); border-radius: var(--r); font-size: 0.65rem; color: var(--text-dim); cursor: pointer; font-family: var(--font-sans); transition: all 0.15s; white-space: nowrap; }
+  .code-action:hover { border-color: var(--btn); color: var(--btn); }
+  .code-action.run { background: rgba(0,151,178,0.15); border-color: var(--btn); color: var(--btn); }
+  .code-action.run:hover { background: rgba(0,151,178,0.25); }
+  .code-action:disabled { opacity: 0.4; cursor: not-allowed; }
+  .code-editor {
+    flex: 1; overflow-y: auto; padding: 16px;
+    font-family: var(--font-mono); font-size: 0.75rem;
+    line-height: 1.7; color: #7ab87a;
+    white-space: pre; overflow-x: auto;
+  }
+  .code-editor::-webkit-scrollbar { width: 3px; }
+  .code-output-section { border-top: 1px solid var(--border); flex-shrink: 0; }
+  .code-output-header { padding: 6px 14px; font-size: 0.58rem; color: var(--text-muted); letter-spacing: 1.5px; text-transform: uppercase; background: var(--surface); border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 6px; }
+  .code-output { padding: 12px 16px; font-family: var(--font-mono); font-size: 0.72rem; color: #4a8a6a; line-height: 1.6; max-height: 160px; overflow-y: auto; min-height: 48px; }
+  .code-output.error { color: #e55039; }
+  .code-running { display: flex; gap: 4px; padding: 14px 16px; }
+  .cr { width: 4px; height: 4px; border-radius: 50%; background: var(--accent); animation: td 1.2s ease-in-out infinite; }
+  .cr:nth-child(2){animation-delay:.2s} .cr:nth-child(3){animation-delay:.4s}
+
   /* ── AGENTS TAB ── */
   .agents-shell { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
   .agents-split { flex: 1; display: grid; grid-template-columns: 320px 1fr; overflow: hidden; gap: 0; }
@@ -449,6 +512,8 @@ export default function ARBIProduction() {
   const [sensingText, setSensingText] = useState('')
   const [recording, setRecording]     = useState(false)
   const [showObs, setShowObs]         = useState(false)
+  const [showAgents, setShowAgents]   = useState(false)
+  const [codePanel, setCodePanel]     = useState<{lang:string;code:string;output:string|null;running:boolean}|null>(null)
   const [agentTask, setAgentTask]     = useState('')
   const [agentRunning, setAgentRunning] = useState(false)
   const [agentLogs, setAgentLogs]     = useState<{agent:string;symbol:string;name?:string;output:string;phase?:string}[]>([])
@@ -456,7 +521,9 @@ export default function ARBIProduction() {
   const [activeAgent, setActiveAgent] = useState<string|null>(null)
   const [speaking, setSpeaking]       = useState(false)
   const [cmdInput, setCmdInput]       = useState('')
-  const agentLogRef = useRef<HTMLDivElement>(null)
+  const agentLogRef    = useRef<HTMLDivElement>(null)
+  const agentCanvasRef = useRef<HTMLCanvasElement>(null)
+  const agentAnimRef   = useRef<number>(0)
   const [presenceState, setPresenceState] = useState({breath:0.6,resonance:0.7,depth:0.5})
   const [loadingConv, setLoadingConv] = useState(false)
 
@@ -581,6 +648,113 @@ export default function ARBIProduction() {
     return () => clearInterval(id)
   }, [])
 
+  // ── AGENT CANVAS ANIMATION ──────────────────────────────────
+  useEffect(() => {
+    if (!showAgents) { cancelAnimationFrame(agentAnimRef.current); return }
+    let t = 0
+    const NODES = [
+      { id: 'analyst',     label: '◈', x: 0.2, y: 0.5 },
+      { id: 'navigator',   label: '◉', x: 0.5, y: 0.25 },
+      { id: 'synthesizer', label: '◎', x: 0.8, y: 0.5 },
+    ]
+    const EDGES = [[0,1],[1,2],[0,2]]
+    function drawAgentCanvas() {
+      const canvas = agentCanvasRef.current
+      if (!canvas) return
+      const ctx = canvas.getContext('2d')
+      if (!ctx) return
+      const w = canvas.offsetWidth || 480
+      const h = canvas.offsetHeight || 180
+      canvas.width  = w
+      canvas.height = h
+      ctx.clearRect(0, 0, w, h)
+      t += 0.02
+
+      // Draw edges
+      for (const [a, b] of EDGES) {
+        const na = NODES[a], nb = NODES[b]
+        const x1 = na.x * w, y1 = na.y * h
+        const x2 = nb.x * w, y2 = nb.y * h
+        const isActive = agentRunning && (
+          (activeAgent === na.id || activeAgent === nb.id)
+        )
+        ctx.beginPath()
+        ctx.moveTo(x1, y1)
+        ctx.lineTo(x2, y2)
+        ctx.strokeStyle = isActive
+          ? `rgba(0,229,255,${0.3 + Math.sin(t * 3) * 0.2})`
+          : 'rgba(0,229,255,0.08)'
+        ctx.lineWidth = isActive ? 1.5 : 0.5
+        ctx.stroke()
+
+        // Animate packet along edge when active
+        if (isActive) {
+          const progress = (t * 0.5) % 1
+          const px = x1 + (x2 - x1) * progress
+          const py = y1 + (y2 - y1) * progress
+          ctx.beginPath()
+          ctx.arc(px, py, 2.5, 0, Math.PI * 2)
+          ctx.fillStyle = `rgba(0,229,255,${0.8 - progress * 0.5})`
+          ctx.fill()
+        }
+      }
+
+      // Draw nodes
+      for (const node of NODES) {
+        const x = node.x * w, y = node.y * h
+        const isActive = activeAgent === node.id
+        const isDone   = agentLogs.some(l => l.agent === node.id) && !isActive
+
+        // Outer ring
+        const ringR = isActive ? 28 + Math.sin(t * 4) * 4 : 24
+        ctx.beginPath()
+        ctx.arc(x, y, ringR, 0, Math.PI * 2)
+        ctx.strokeStyle = isActive
+          ? `rgba(0,229,255,${0.4 + Math.sin(t*3)*0.2})`
+          : isDone ? 'rgba(0,229,255,0.2)' : 'rgba(0,229,255,0.08)'
+        ctx.lineWidth = 1
+        ctx.stroke()
+
+        // Inner circle
+        ctx.beginPath()
+        ctx.arc(x, y, 16, 0, Math.PI * 2)
+        ctx.fillStyle = isActive
+          ? `rgba(0,229,255,${0.12 + Math.sin(t*3)*0.06})`
+          : isDone ? 'rgba(0,229,255,0.06)' : 'rgba(0,229,255,0.03)'
+        ctx.fill()
+
+        // Pulse rings when active
+        if (isActive) {
+          for (let r = 0; r < 3; r++) {
+            const pr = 20 + ((t * 40 + r * 20) % 60)
+            const pa = Math.max(0, 0.3 - pr / 80)
+            ctx.beginPath()
+            ctx.arc(x, y, pr, 0, Math.PI * 2)
+            ctx.strokeStyle = `rgba(0,229,255,${pa})`
+            ctx.lineWidth = 0.5
+            ctx.stroke()
+          }
+        }
+
+        // Label
+        ctx.font = `${isActive ? 16 : 13}px monospace`
+        ctx.fillStyle = isActive ? '#00e5ff' : isDone ? 'rgba(0,229,255,0.5)' : 'rgba(0,229,255,0.2)'
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+        ctx.fillText(node.label, x, y)
+
+        // Name label below
+        ctx.font = '9px sans-serif'
+        ctx.fillStyle = isActive ? 'rgba(0,229,255,0.7)' : 'rgba(0,229,255,0.25)'
+        ctx.fillText(node.id, x, y + 32)
+      }
+
+      agentAnimRef.current = requestAnimationFrame(drawAgentCanvas)
+    }
+    agentAnimRef.current = requestAnimationFrame(drawAgentCanvas)
+    return () => cancelAnimationFrame(agentAnimRef.current)
+  }, [showAgents, agentRunning, activeAgent, agentLogs])
+
   useEffect(() => {
     if (!streaming) { setSensingText(''); return }
     setSensingText(SENSING_PHRASES[Math.floor(Math.random()*SENSING_PHRASES.length)])
@@ -653,13 +827,14 @@ export default function ARBIProduction() {
   function speakText(text: string) {
     if (!window.speechSynthesis) return
     window.speechSynthesis.cancel()
-    const clean = text.replace(/[#*`_~>]/g, '').replace(/\[.*?]/g, '').trim()
+    const clean = text.replace(/[#*`_~>[\]]/g, '').replace(/\*\*/g, '').trim()
     const utt   = new SpeechSynthesisUtterance(clean)
     utt.lang  = 'en-ZA'
-    utt.rate  = 0.95
+    utt.rate  = 0.92
     utt.pitch = 1.0
     const voices = window.speechSynthesis.getVoices()
     const preferred = voices.find(v => v.lang.includes('en') && v.name.toLowerCase().includes('female'))
+      || voices.find(v => v.lang.includes('en-ZA'))
       || voices.find(v => v.lang.includes('en'))
     if (preferred) utt.voice = preferred
     utt.onstart = () => setSpeaking(true)
@@ -669,7 +844,9 @@ export default function ARBIProduction() {
   }
 
   function stopSpeaking() {
-    window.speechSynthesis?.cancel()
+    if (window.speechSynthesis) {
+      window.speechSynthesis.cancel()
+    }
     setSpeaking(false)
   }
 
@@ -758,6 +935,50 @@ export default function ARBIProduction() {
     return data.url
   }
 
+  // ── CODE EXECUTION ───────────────────────────────────────────
+  async function runCode(code: string, lang: string) {
+    if (!codePanel) return
+    setCodePanel(p => p ? {...p, running: true, output: null} : null)
+    try {
+      if (lang === 'javascript' || lang === 'js') {
+        // Sandboxed iframe execution
+        const iframe = document.createElement('iframe')
+        iframe.style.display = 'none'
+        iframe.sandbox.add('allow-scripts')
+        document.body.appendChild(iframe)
+        const logs: string[] = []
+        ;(iframe.contentWindow as any).console = {
+          log:   (...a: any[]) => logs.push(a.map(String).join(' ')),
+          error: (...a: any[]) => logs.push('ERROR: ' + a.map(String).join(' ')),
+          warn:  (...a: any[]) => logs.push('WARN: ' + a.map(String).join(' ')),
+        }
+        try {
+          iframe.contentWindow?.eval(code)
+          setCodePanel(p => p ? {...p, running: false, output: logs.join('
+') || '✓ Executed (no output)'} : null)
+        } catch(e: any) {
+          setCodePanel(p => p ? {...p, running: false, output: 'Runtime error: ' + e.message} : null)
+        } finally {
+          document.body.removeChild(iframe)
+        }
+      } else if (lang === 'python' || lang === 'py') {
+        // Send to API for server-side execution
+        const res = await fetch('/api/execute', {
+          method: 'POST',
+          headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({ code, lang }),
+        })
+        const data = await res.json()
+        setCodePanel(p => p ? {...p, running: false, output: data.output || data.error || 'No output'} : null)
+      } else {
+        setCodePanel(p => p ? {...p, running: false, output: `Execution not supported for ${lang} in browser.
+Copy the code to run locally.`} : null)
+      }
+    } catch(e: any) {
+      setCodePanel(p => p ? {...p, running: false, output: 'Execution failed: ' + e.message} : null)
+    }
+  }
+
   async function handleSignOut() {
     // Clear localStorage session
     const lsKey = Object.keys(localStorage).find(k => k.startsWith('sb-') && k.endsWith('-auth-token'))
@@ -770,6 +991,7 @@ export default function ARBIProduction() {
   async function sendMessage(text?: string) {
     const msg = text || input.trim()
     if (!msg || streaming) return
+    if (speaking) stopSpeaking()
 
     const baseMessages: Message[] = started
       ? messages
@@ -827,6 +1049,15 @@ export default function ARBIProduction() {
         setMessages(m=>{const c=[...m];c[c.length-1]={...c[c.length-1],content:fullResponse};return c})
       }
 
+      // Detect code blocks — open split panel
+      const codeMatch = fullResponse.match(/```(\w+)?
+([\s\S]+?)```/)
+      if (codeMatch && !codePanel) {
+        const lang = codeMatch[1] || 'javascript'
+        const code = codeMatch[2].trim()
+        setCodePanel({ lang, code, output: null, running: false })
+      }
+
       // Handle generative image tag from ARBI
       let finalResponse = fullResponse
       const genMatch = fullResponse.match(/\[GENERATE_IMAGE:([^\]]+)\]/)
@@ -875,6 +1106,7 @@ export default function ARBIProduction() {
     setMode(newMode); setStarted(false); setMessages([]); setInput('')
     setConversationId(null); setActiveConvId(null)
     setAgentLogs([]); setAgentFinal(null); setActiveAgent(null); setAgentTask('')
+    setCodePanel(null); if(speaking) stopSpeaking()
   }
 
   function startNew() {
@@ -926,10 +1158,9 @@ export default function ARBIProduction() {
             <button className="new-btn" onClick={startNew} title="New conversation"><Plus size={13} strokeWidth={2.5}/></button>
           </div>
 
-          <div className="mode-toggle" style={{gridTemplateColumns:'1fr 1fr 1fr'}}>
+          <div className="mode-toggle" style={{gridTemplateColumns:'1fr 1fr'}}>
             <button className={`mode-btn ${mode==='xeno'?'active':''}`} onClick={()=>switchMode('xeno')}><Compass size={11}/>XenoGuide</button>
             <button className={`mode-btn ${mode==='open'?'active':''}`} onClick={()=>switchMode('open')}><Globe size={11}/>Open</button>
-            <button className={`mode-btn ${mode==='agents'?'active':''}`} onClick={()=>switchMode('agents')} style={{color: mode==='agents'?'var(--warn)':''}}>⬡ Agents</button>
           </div>
 
           {mode==='xeno' && (
@@ -1006,7 +1237,7 @@ export default function ARBIProduction() {
         </div>
 
         {/* ── MAIN ── */}
-        <div className="main">
+        <div className={`main ${codePanel ? "main-with-code" : ""}`}>
 
           <div className="header">
             <button className="menu-btn" onClick={()=>setSidebarOpen(s=>!s)}><Menu size={15}/></button>
@@ -1057,6 +1288,7 @@ export default function ARBIProduction() {
             </div>
             <div className="header-right">
               <button className={`hbtn ${showObs?'active':''}`} onClick={()=>setShowObs(s=>!s)} title="ARBI observations"><Brain size={15}/></button>
+              <button className={`hbtn ${showAgents?'active':''}`} onClick={()=>setShowAgents(s=>!s)} title="Agent pipeline" style={{fontSize:'0.75rem',fontWeight:600}}>⬡</button>
               <button className="hbtn"><MoreHorizontal size={15}/></button>
             </div>
           </div>
@@ -1099,90 +1331,7 @@ export default function ARBIProduction() {
             </div>
           )}
 
-          {/* AGENTS TAB */}
-          {mode === 'agents' && (
-            <div className="agents-shell">
-              <div className="agents-split">
-                <div className="agent-viz">
-                  <div className="agent-viz-title">Agent Pipeline</div>
-                  <div className="agent-nodes">
-                    {[
-                      {id:'analyst',    symbol:'◈', name:'Analyst',     role:'Breaks down the task and identifies requirements'},
-                      {id:'navigator',  symbol:'◉', name:'Navigator',   role:'Plans execution route and selects approaches'},
-                      {id:'synthesizer',symbol:'◎', name:'Synthesizer', role:'Combines outputs into a clear response'},
-                    ].map((ag, i) => (
-                      <div key={ag.id}>
-                        <div className={`agent-node ${activeAgent===ag.id?'active':agentLogs.some(l=>l.agent===ag.id)?'done':''}`}>
-                          <div className="agent-symbol">{ag.symbol}</div>
-                          <div className="agent-info">
-                            <div className="agent-name">{ag.name}</div>
-                            <div className="agent-role">{ag.role}</div>
-                            {activeAgent===ag.id&&<div className="agent-thinking"><div className="at"/><div className="at"/><div className="at"/></div>}
-                            {agentLogs.find(l=>l.agent===ag.id)&&activeAgent!==ag.id&&<div className="agent-status">✓ Complete</div>}
-                          </div>
-                        </div>
-                        {i<2&&<div className="agent-connector"/>}
-                      </div>
-                    ))}
-                  </div>
-                  {agentFinal&&(
-                    <div style={{marginTop:16}}>
-                      <div className="agent-viz-title" style={{marginBottom:8}}>Final Output</div>
-                      <div style={{background:'var(--surface2)',border:'1px solid var(--border)',borderRadius:'var(--r-lg)',padding:'14px',fontSize:'0.75rem',color:'var(--text-dim)',lineHeight:1.6,maxHeight:200,overflowY:'auto'}}
-                        dangerouslySetInnerHTML={{__html:renderMarkdown(agentFinal)}}/>
-                      <div style={{display:'flex',gap:6,marginTop:8}}>
-                        <button className="gen-action" onClick={()=>speakText(agentFinal)}>▷ Read</button>
-                        <button className="gen-action" onClick={()=>navigator.clipboard.writeText(agentFinal)}>⎘ Copy</button>
-                        <button className="gen-action" onClick={()=>{switchMode('open');setTimeout(()=>sendMessage(agentFinal.slice(0,200)),100)}}>→ Chat</button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-                <div className="cmd-shell">
-                  <div className="cmd-header">
-                    <div className="cmd-dot" style={{background:'#e55039'}}/><div className="cmd-dot" style={{background:'#f0c040'}}/><div className="cmd-dot" style={{background:'#4ac74a'}}/>
-                    <div className="cmd-title">xenogen-arbi — agent-pipeline</div>
-                  </div>
-                  <div className="cmd-log" ref={agentLogRef}>
-                    {agentLogs.length===0&&!agentRunning&&<div className="cmd-line"><span className="cmd-prompt">$</span><span className="cmd-system"> ARBI agent pipeline ready. Enter a task below.</span></div>}
-                    {agentRunning&&agentLogs.length===0&&<div className="cmd-line"><span className="cmd-prompt">$</span><span className="cmd-system"> Initialising pipeline...</span></div>}
-                    {agentLogs.map((log,i)=>(
-                      <div key={i}>
-                        <div className="cmd-line"><span className="cmd-agent">[{log.symbol} {log.name||log.agent}]</span><span className="cmd-prompt"> →</span></div>
-                        {log.output.split('\n').map((line,j)=>(
-                          <div key={j} className="cmd-line" style={{paddingLeft:16}}>
-                            <span className={log.agent==='system'?'cmd-error':'cmd-text'}>{line}</span>
-                          </div>
-                        ))}
-                        <div className="cmd-line"><span className="cmd-system">{'─'.repeat(40)}</span></div>
-                      </div>
-                    ))}
-                    {agentFinal&&<div className="cmd-line"><span className="cmd-prompt">✓</span><span className="cmd-final"> Pipeline complete.</span></div>}
-                    {activeAgent&&<div className="cmd-line"><span className="cmd-prompt">▶</span><span className="cmd-system"> {activeAgent} processing...</span></div>}
-                  </div>
-                  <div className="cmd-input-row">
-                    <span className="cmd-prompt-label">$</span>
-                    <input className="cmd-input-field" placeholder="type a note..."
-                      value={cmdInput} onChange={e=>setCmdInput(e.target.value)}
-                      onKeyDown={e=>{if(e.key==='Enter'&&cmdInput.trim()){setAgentLogs(prev=>[...prev,{agent:'user',symbol:'>',name:'User',output:cmdInput}]);setCmdInput('')}}}/>
-                    <button className="cmd-run-btn" disabled={agentRunning} onClick={()=>runAgentPipeline(agentTask)}>{agentRunning?'running...':'run'}</button>
-                  </div>
-                </div>
-              </div>
-              <div className="agent-task-input">
-                <input className="agent-task-field"
-                  placeholder="Describe a task for the agent pipeline..."
-                  value={agentTask} onChange={e=>setAgentTask(e.target.value)}
-                  onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();runAgentPipeline(agentTask)}}}
-                  disabled={agentRunning}/>
-                <button className="agent-run-btn" onClick={()=>runAgentPipeline(agentTask)} disabled={agentRunning||!agentTask.trim()}>
-                  {agentRunning?'Running...':'▶ Run'}
-                </button>
-              </div>
-            </div>
-          )}
-
-          {mode !== 'agents' && <div className="chat-area">
+          <div className="chat-area">
             {!started ? (
               <div className="welcome">
                 <div className="welcome-sigil"><canvas ref={sigilWlRef} width={80} height={80}/></div>
@@ -1258,9 +1407,9 @@ export default function ARBIProduction() {
                 <div ref={endRef}/>
               </>
             )}
-          </div>}
 
-          {mode !== 'agents' && <div className="input-section">
+
+          <div className="input-section">
             <div className="input-inner">
               <div className="input-wrap">
                 <textarea ref={textareaRef} rows={1} value={input}
@@ -1283,8 +1432,133 @@ export default function ARBIProduction() {
               </div>
               <div className="input-hint">ENTER to send · SHIFT+ENTER new line · Voice input available</div>
             </div>
-          </div>}
+          </div>
 
+        {/* CODE SPLIT PANEL */}
+        {codePanel && (
+          <div className="code-panel">
+            <div className="code-panel-header">
+              <span className="code-lang-badge">{codePanel.lang}</span>
+              <div className="code-panel-actions">
+                <button className="code-action run"
+                  onClick={()=>runCode(codePanel.code, codePanel.lang)}
+                  disabled={codePanel.running}>
+                  {codePanel.running ? '⟳ Running...' : '▶ Run'}
+                </button>
+                <button className="code-action" onClick={()=>navigator.clipboard.writeText(codePanel.code)}>⎘ Copy</button>
+                <button className="code-action" onClick={()=>speakText('Here is the code: ' + codePanel.code.slice(0,200))}>▷</button>
+                <button className="code-action" onClick={()=>setCodePanel(null)}>✕</button>
+              </div>
+            </div>
+            <div className="code-editor">{codePanel.code}</div>
+            <div className="code-output-section">
+              <div className="code-output-header">
+                <span style={{width:8,height:8,borderRadius:'50%',background:codePanel.output?.startsWith('Runtime')||codePanel.output?.startsWith('Error')?'#e55039':'#4ac74a',display:'inline-block'}}/>
+                Output
+              </div>
+              {codePanel.running ? (
+                <div className="code-running"><div className="cr"/><div className="cr"/><div className="cr"/></div>
+              ) : codePanel.output ? (
+                <div className={`code-output ${codePanel.output.startsWith('Runtime')||codePanel.output.startsWith('Error')?'error':''}`}>
+                  {codePanel.output}
+                </div>
+              ) : (
+                <div className="code-output" style={{color:'var(--text-muted)',fontStyle:'italic'}}>Ready to run</div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* AGENTS SLIDE PANEL */}
+      <div className={`agents-panel-overlay ${showAgents?'visible':''}`} onClick={()=>setShowAgents(false)}/>
+      <div className={`agents-panel ${showAgents?'open':''}`}>
+        <div className="agents-panel-header">
+          <span style={{fontSize:'1rem'}}>⬡</span>
+          <span className="agents-panel-title">Agent Pipeline</span>
+          <button className="agents-close" onClick={()=>setShowAgents(false)}>✕</button>
+        </div>
+
+        {/* Live agent canvas */}
+        <div className="agent-canvas-area">
+          <canvas ref={agentCanvasRef}/>
+        </div>
+
+        {/* CMD Log */}
+        <div className="cmd-shell" style={{flex:1,minHeight:0}}>
+          <div className="cmd-header">
+            <div className="cmd-dot" style={{background:'#e55039'}}/>
+            <div className="cmd-dot" style={{background:'#f0c040'}}/>
+            <div className="cmd-dot" style={{background:'#4ac74a'}}/>
+            <div className="cmd-title">agent-pipeline — live output</div>
+          </div>
+          <div className="cmd-log" ref={agentLogRef} style={{flex:1}}>
+            {agentLogs.length===0&&!agentRunning&&(
+              <div className="cmd-line"><span className="cmd-prompt">$</span><span className="cmd-system"> Pipeline ready. Enter a task below.</span></div>
+            )}
+            {agentRunning&&agentLogs.length===0&&(
+              <div className="cmd-line"><span className="cmd-prompt">$</span><span className="cmd-system"> Initialising...</span></div>
+            )}
+            {agentLogs.map((log,i)=>(
+              <div key={i}>
+                <div className="cmd-line">
+                  <span className="cmd-agent">[{log.symbol} {log.name||log.agent}]</span>
+                  <span className="cmd-prompt"> →</span>
+                </div>
+                {log.output.split('
+').map((line,j)=>(
+                  <div key={j} className="cmd-line" style={{paddingLeft:16}}>
+                    <span className={log.agent==='system'?'cmd-error':'cmd-text'}>{line}</span>
+                  </div>
+                ))}
+                <div className="cmd-line"><span className="cmd-system">{'─'.repeat(40)}</span></div>
+              </div>
+            ))}
+            {agentFinal&&(
+              <div>
+                <div className="cmd-line"><span className="cmd-prompt">✓</span><span className="cmd-final"> Pipeline complete.</span></div>
+                <div style={{margin:'8px 12px',background:'var(--surface2)',border:'1px solid var(--border)',borderRadius:'var(--r)',padding:'10px',fontSize:'0.72rem',color:'var(--text-dim)',lineHeight:1.6}}>
+                  <div dangerouslySetInnerHTML={{__html:renderMarkdown(agentFinal)}}/>
+                  <div style={{display:'flex',gap:6,marginTop:8}}>
+                    <button className="gen-action" onClick={()=>speakText(agentFinal)}>▷ Read</button>
+                    <button className="gen-action" onClick={()=>navigator.clipboard.writeText(agentFinal)}>⎘ Copy</button>
+                    <button className="gen-action" onClick={()=>{setShowAgents(false);setTimeout(()=>sendMessage(agentFinal.slice(0,300)),100)}}>→ Send to chat</button>
+                  </div>
+                </div>
+              </div>
+            )}
+            {activeAgent&&(
+              <div className="cmd-line"><span className="cmd-prompt">▶</span><span className="cmd-system"> {activeAgent} processing...</span></div>
+            )}
+          </div>
+          <div className="cmd-input-row">
+            <span className="cmd-prompt-label">$</span>
+            <input className="cmd-input-field" placeholder="type a note..."
+              value={cmdInput} onChange={e=>setCmdInput(e.target.value)}
+              onKeyDown={e=>{if(e.key==='Enter'&&cmdInput.trim()){
+                setAgentLogs(prev=>[...prev,{agent:'user',symbol:'>',name:'User',output:cmdInput}])
+                setCmdInput('')
+              }}}/>
+            <button className="cmd-run-btn" disabled={agentRunning}
+              onClick={()=>runAgentPipeline(agentTask)}>
+              {agentRunning?'running...':'run'}
+            </button>
+          </div>
+        </div>
+
+        {/* Task input */}
+        <div className="agent-task-input">
+          <input className="agent-task-field"
+            placeholder="Describe a task for the agent pipeline..."
+            value={agentTask}
+            onChange={e=>setAgentTask(e.target.value)}
+            onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();runAgentPipeline(agentTask)}}}
+            disabled={agentRunning}/>
+          <button className="agent-run-btn"
+            onClick={()=>runAgentPipeline(agentTask)}
+            disabled={agentRunning||!agentTask.trim()}>
+            {agentRunning?'Running...':'▶ Run'}
+          </button>
         </div>
       </div>
     </>
