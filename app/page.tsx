@@ -1196,14 +1196,11 @@ Copy the code to run locally.`} : null)
           <div className="conv-section">
             <div className="conv-group">Recent</div>
             {conversations.length===0 ? (
-              <div style={{padding:'8px 10px',fontSize:'0.7rem',color:'var(--text-muted)',fontStyle:'italic'}}>
-                No conversations yet — start chatting!
-              </div>
+              <div style={{padding:'8px 10px',fontSize:'0.7rem',color:'var(--text-muted)',fontStyle:'italic'}}>No conversations yet</div>
             ) : conversations.map(c=>(
-              <div key={c.id} className={`conv-item ${activeConvId===c.id?'active':''}`}
-                onClick={()=>loadConversation(c)}>
+              <div key={c.id} className={`conv-item ${activeConvId===c.id?'active':''}`} onClick={()=>loadConversation(c)}>
                 <div className="conv-title">{c.title}</div>
-                <div className="conv-preview">{loadingConv&&activeConvId===c.id?'Loading...' :'Tap to continue...'}</div>
+                <div className="conv-preview">{loadingConv&&activeConvId===c.id?'Loading...':'Tap to continue...'}</div>
               </div>
             ))}
           </div>
@@ -1226,8 +1223,7 @@ Copy the code to run locally.`} : null)
           )}
 
           {authUser?.email === 'nathimthunzini@gmail.com' && (
-            <button className="signout-btn" onClick={() => router.push('/admin')}
-              style={{color:'var(--accent)',opacity:0.7}}>
+            <button className="signout-btn" onClick={()=>router.push('/admin')} style={{color:'var(--accent)',opacity:0.7}}>
               ⬡ Control Plane
             </button>
           )}
@@ -1235,7 +1231,7 @@ Copy the code to run locally.`} : null)
         </div>
 
         {/* ── MAIN ── */}
-        <div className={`main ${codePanel ? "main-with-code" : ""}`}>
+        <div className={`main ${codePanel ? 'main-with-code' : ''}`}>
 
           <div className="header">
             <button className="menu-btn" onClick={()=>setSidebarOpen(s=>!s)}><Menu size={15}/></button>
@@ -1244,41 +1240,27 @@ Copy the code to run locally.`} : null)
               <div style={{display:'flex',flexDirection:'column',gap:4}}>
                 <div className="header-name">ARBI</div>
                 <div style={{display:'flex',alignItems:'center',gap:8}}>
-                  {/* Mini waveform */}
                   <canvas ref={presenceRef} width={80} height={18} style={{opacity:0.7}}/>
-                  {/* Bio indicators — minimal stroke icons */}
-                  <div style={{display:'flex',gap:8,alignItems:'center'}}>
-                    {/* Heart — Presence */}
+                  <div style={{display:'flex',gap:6,alignItems:'center'}}>
                     <div style={{display:'flex',alignItems:'center',gap:3}} title="Presence">
-                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none"
-                        stroke={`rgba(0,229,255,${0.25+presenceState.breath*0.75})`} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={`rgba(0,229,255,${0.25+presenceState.breath*0.75})`} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M12 21C12 21 3 14 3 8a4 4 0 0 1 8-1 1 1 0 0 0 2 0 4 4 0 0 1 8 1c0 6-9 13-9 13z"/>
                       </svg>
-                      <span style={{fontSize:'0.46rem',color:`rgba(0,229,255,${0.25+presenceState.breath*0.75})`,fontFamily:'var(--font-mono)',letterSpacing:'0.5px'}}>
-                        {Math.round(presenceState.breath*100)}
-                      </span>
+                      <span style={{fontSize:'0.46rem',color:`rgba(0,229,255,${0.25+presenceState.breath*0.75})`,fontFamily:'var(--font-mono)'}}>{Math.round(presenceState.breath*100)}</span>
                     </div>
-                    {/* Brain — Clarity */}
                     <div style={{display:'flex',alignItems:'center',gap:3}} title="Clarity">
-                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none"
-                        stroke={`rgba(0,229,255,${0.25+presenceState.resonance*0.75})`} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={`rgba(0,229,255,${0.25+presenceState.resonance*0.75})`} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96-.46 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 4.44-1.04z"/>
                         <path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96-.46 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24A2.5 2.5 0 0 0 14.5 2z"/>
                       </svg>
-                      <span style={{fontSize:'0.46rem',color:`rgba(0,229,255,${0.25+presenceState.resonance*0.75})`,fontFamily:'var(--font-mono)',letterSpacing:'0.5px'}}>
-                        {Math.round(presenceState.resonance*100)}
-                      </span>
+                      <span style={{fontSize:'0.46rem',color:`rgba(0,229,255,${0.25+presenceState.resonance*0.75})`,fontFamily:'var(--font-mono)'}}>{Math.round(presenceState.resonance*100)}</span>
                     </div>
-                    {/* Body — Attunement */}
                     <div style={{display:'flex',alignItems:'center',gap:3}} title="Attunement">
-                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none"
-                        stroke={`rgba(0,229,255,${0.25+presenceState.depth*0.75})`} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={`rgba(0,229,255,${0.25+presenceState.depth*0.75})`} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                         <circle cx="12" cy="5" r="2"/>
                         <path d="M12 8v5m-3 0v4m6-4v4M9 13H7l1-5h8l1 5h-2"/>
                       </svg>
-                      <span style={{fontSize:'0.46rem',color:`rgba(0,229,255,${0.25+presenceState.depth*0.75})`,fontFamily:'var(--font-mono)',letterSpacing:'0.5px'}}>
-                        {Math.round(presenceState.depth*100)}
-                      </span>
+                      <span style={{fontSize:'0.46rem',color:`rgba(0,229,255,${0.25+presenceState.depth*0.75})`,fontFamily:'var(--font-mono)'}}>{Math.round(presenceState.depth*100)}</span>
                     </div>
                   </div>
                 </div>
@@ -1295,34 +1277,20 @@ Copy the code to run locally.`} : null)
             <div className="stage-bar">
               <Zap size={11} color="var(--btn)"/>
               <div className="stage-bar-text">{currentStage?.label||'GroundZero'} pathway · {progress.completed} stages complete</div>
-              {currentUrl && (
-                <button className="stage-bar-link" onClick={()=>window.open(currentUrl,'_blank')}>
-                  Go to {currentStage?.label} <ArrowRight size={10}/>
-                </button>
-              )}
+              {currentUrl && <button className="stage-bar-link" onClick={()=>window.open(currentUrl,'_blank')}>Go to {currentStage?.label} <ArrowRight size={10}/></button>}
             </div>
           )}
 
-          <div className="presence-panel">
-            <div className="presence-canvas-wrap"><canvas ref={presenceRef} width={580} height={140}/></div>
-            <div className="presence-states">
-              <div className="pstate"><div className="pstate-v">{presenceLabel}</div><div className="pstate-l">Presence</div></div>
-              <div className="pstate"><div className="pstate-v">{resonanceLabel}</div><div className="pstate-l">Clarity</div></div>
-              <div className="pstate"><div className="pstate-v">{depthLabel}</div><div className="pstate-l">Attunement</div></div>
-            </div>
-          </div>
 
           {showObs && (
             <div className="obs-panel">
               <div className="obs-title"><Brain size={11}/> What ARBI knows about you</div>
               {memories.filter(m=>m.key!=='onboarding_done').length===0 ? (
-                <div className="obs-empty">Nothing recorded yet — start a conversation in XenoGuide mode.</div>
+                <div className="obs-empty">Nothing recorded yet.</div>
               ) : (
                 <div className="obs-grid">
                   {memories.filter(m=>m.key!=='onboarding_done').map(m=>(
-                    <div key={m.key} className="obs-tag">
-                      {MEMORY_LABELS[m.key]||m.key}: <span>{m.value.replace(/_/g,' ')}</span>
-                    </div>
+                    <div key={m.key} className="obs-tag">{MEMORY_LABELS[m.key]||m.key}: <span>{m.value.replace(/_/g,' ')}</span></div>
                   ))}
                 </div>
               )}
@@ -1360,14 +1328,12 @@ Copy the code to run locally.`} : null)
                       </div>
                     ) : (
                       <div className="msg-content">
-                        {/* Generative image widget */}
                         {msg.role==='assistant' && msg.content.includes('[IMG:') ? (
                           <div className="gen-image-wrap">
-                            <img className="gen-image" src={msg.content.match(/\[IMG:(.*?)\]/)?.[1] || ''} alt="Generated" onError={(e)=>(e.currentTarget.style.display='none')}/>
+                            <img className="gen-image" src={msg.content.match(/\[IMG:(.*?)\]/)?.[1]||''} alt="Generated"/>
                             <div className="gen-actions">
-                              <button className="gen-action" onClick={()=>window.open(msg.content.match(/\[IMG:(.*?)\]/)?.[1]||'','_blank')}>↗ Open full</button>
-                              <button className="gen-action" onClick={()=>{const a=document.createElement('a');a.href=msg.content.match(/\[IMG:(.*?)\]/)?.[1]||'';a.download='arbi-image.jpg';a.click()}}>↓ Download</button>
-                              <button className="gen-action" onClick={()=>navigator.clipboard.writeText(msg.content.match(/\[IMG:(.*?)\]/)?.[1]||'')}>⎘ Copy URL</button>
+                              <button className="gen-action" onClick={()=>window.open(msg.content.match(/\[IMG:(.*?)\]/)?.[1]||'','_blank')}>↗ Open</button>
+                              <button className="gen-action" onClick={()=>navigator.clipboard.writeText(msg.content.match(/\[IMG:(.*?)\]/)?.[1]||'')}>⎘ URL</button>
                             </div>
                           </div>
                         ) : (
@@ -1379,16 +1345,10 @@ Copy the code to run locally.`} : null)
                         )}
                         <div style={{display:'flex',alignItems:'center',gap:6,marginTop:2}}>
                           <div className="msg-time">{msg.time}</div>
-                          {msg.role==='assistant' && msg.content && (
+                          {msg.role==='assistant'&&msg.content&&(
                             <div className="msg-actions">
-                              <button className="msg-action-btn" title="Read aloud"
-                                onClick={()=>speaking?stopSpeaking():speakText(msg.content)}>
-                                {speaking?'◼':'▷'}
-                              </button>
-                              <button className="msg-action-btn" title="Copy"
-                                onClick={()=>navigator.clipboard.writeText(msg.content)}>
-                                ⎘
-                              </button>
+                              <button className="msg-action-btn" title="Read aloud" onClick={()=>speaking?stopSpeaking():speakText(msg.content)}>{speaking?'◼':'▷'}</button>
+                              <button className="msg-action-btn" title="Copy" onClick={()=>navigator.clipboard.writeText(msg.content)}>⎘</button>
                             </div>
                           )}
                         </div>
@@ -1405,13 +1365,13 @@ Copy the code to run locally.`} : null)
                 <div ref={endRef}/>
               </>
             )}
-
+          </div>
 
           <div className="input-section">
             <div className="input-inner">
               <div className="input-wrap">
                 <textarea ref={textareaRef} rows={1} value={input}
-                  onChange={e=>{setInput(e.target.value);autoResize()}}
+                  onChange={e=>{setInput(e.target.value);autoResize();if(speaking)stopSpeaking()}}
                   onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage()}}}
                   placeholder={mode==='xeno'?'Talk to ARBI — your guide...':'Ask ARBI anything...'}/>
                 <div className="input-btns">
@@ -1432,40 +1392,37 @@ Copy the code to run locally.`} : null)
             </div>
           </div>
 
-        {/* CODE SPLIT PANEL */}
-        {codePanel && (
-          <div className="code-panel">
-            <div className="code-panel-header">
-              <span className="code-lang-badge">{codePanel.lang}</span>
-              <div className="code-panel-actions">
-                <button className="code-action run"
-                  onClick={()=>runCode(codePanel.code, codePanel.lang)}
-                  disabled={codePanel.running}>
-                  {codePanel.running ? '⟳ Running...' : '▶ Run'}
-                </button>
-                <button className="code-action" onClick={()=>navigator.clipboard.writeText(codePanel.code)}>⎘ Copy</button>
-                <button className="code-action" onClick={()=>speakText('Here is the code: ' + codePanel.code.slice(0,200))}>▷</button>
-                <button className="code-action" onClick={()=>setCodePanel(null)}>✕</button>
-              </div>
-            </div>
-            <div className="code-editor">{codePanel.code}</div>
-            <div className="code-output-section">
-              <div className="code-output-header">
-                <span style={{width:8,height:8,borderRadius:'50%',background:codePanel.output?.startsWith('Runtime')||codePanel.output?.startsWith('Error')?'#e55039':'#4ac74a',display:'inline-block'}}/>
-                Output
-              </div>
-              {codePanel.running ? (
-                <div className="code-running"><div className="cr"/><div className="cr"/><div className="cr"/></div>
-              ) : codePanel.output ? (
-                <div className={`code-output ${codePanel.output.startsWith('Runtime')||codePanel.output.startsWith('Error')?'error':''}`}>
-                  {codePanel.output}
+          {/* CODE SPLIT PANEL */}
+          {codePanel && (
+            <div className="code-panel">
+              <div className="code-panel-header">
+                <span className="code-lang-badge">{codePanel.lang}</span>
+                <div className="code-panel-actions">
+                  <button className="code-action run" onClick={()=>runCode(codePanel.code,codePanel.lang)} disabled={codePanel.running}>
+                    {codePanel.running?'⟳ Running...':'▶ Run'}
+                  </button>
+                  <button className="code-action" onClick={()=>navigator.clipboard.writeText(codePanel.code)}>⎘ Copy</button>
+                  <button className="code-action" onClick={()=>setCodePanel(null)}>✕</button>
                 </div>
-              ) : (
-                <div className="code-output" style={{color:'var(--text-muted)',fontStyle:'italic'}}>Ready to run</div>
-              )}
+              </div>
+              <div className="code-editor">{codePanel.code}</div>
+              <div className="code-output-section">
+                <div className="code-output-header">
+                  <span style={{width:8,height:8,borderRadius:'50%',background:codePanel.output?.startsWith('Runtime')||codePanel.output?.startsWith('Error')?'#e55039':'#4ac74a',display:'inline-block'}}/>
+                  {' '}Output
+                </div>
+                {codePanel.running ? (
+                  <div className="code-running"><div className="cr"/><div className="cr"/><div className="cr"/></div>
+                ) : codePanel.output ? (
+                  <div className={`code-output ${codePanel.output.startsWith('Runtime')||codePanel.output.startsWith('Error')?'error':''}`}>{codePanel.output}</div>
+                ) : (
+                  <div className="code-output" style={{color:'var(--text-muted)',fontStyle:'italic'}}>Ready to run</div>
+                )}
+              </div>
             </div>
-          </div>
-        )}
+          )}
+
+        </div>
       </div>
 
       {/* AGENTS SLIDE PANEL */}
@@ -1515,7 +1472,7 @@ Copy the code to run locally.`} : null)
                   <div style={{display:'flex',gap:6,marginTop:8}}>
                     <button className="gen-action" onClick={()=>speakText(agentFinal)}>▷ Read</button>
                     <button className="gen-action" onClick={()=>navigator.clipboard.writeText(agentFinal)}>⎘ Copy</button>
-                    <button className="gen-action" onClick={()=>{setShowAgents(false);setTimeout(()=>sendMessage(agentFinal.slice(0,300)),100)}}>→ Send to chat</button>
+                    <button className="gen-action" onClick={()=>{setShowAgents(false);setTimeout(()=>sendMessage(agentFinal.slice(0,300)),100)}}>→ Chat</button>
                   </div>
                 </div>
               </div>
@@ -1532,8 +1489,7 @@ Copy the code to run locally.`} : null)
                 setAgentLogs(prev=>[...prev,{agent:'user',symbol:'>',name:'User',output:cmdInput}])
                 setCmdInput('')
               }}}/>
-            <button className="cmd-run-btn" disabled={agentRunning}
-              onClick={()=>runAgentPipeline(agentTask)}>
+            <button className="cmd-run-btn" disabled={agentRunning} onClick={()=>runAgentPipeline(agentTask)}>
               {agentRunning?'running...':'run'}
             </button>
           </div>
