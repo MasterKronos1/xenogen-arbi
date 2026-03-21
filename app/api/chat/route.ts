@@ -84,6 +84,7 @@ export async function POST(req: Request) {
   let mode           = 'xeno'
   let userId         = 'anonymous'
   let conversationId: string | null = null
+  let accessToken:   string | null = null
 
   try {
     const body     = await req.json()
@@ -91,9 +92,21 @@ export async function POST(req: Request) {
     mode           = body.mode || 'xeno'
     userId         = body.userId || 'anonymous'
     conversationId = body.conversationId || null
+    accessToken    = body.accessToken || null
   } catch {
     return new Response('Invalid request.', { status: 400 })
   }
+
+  // Create authenticated Supabase client using user's access token
+  // This ensures RLS policies pass for all DB writes
+  const { createClient } = await import('@supabase/supabase-js')
+  const authSupabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    accessToken ? {
+      global: { headers: { Authorization: `Bearer ${accessToken}` } }
+    } : {}
+  )
 
   const adapter = getStorageAdapter()
   let memoryContext    = ''
@@ -121,28 +134,28 @@ export async function POST(req: Request) {
     const lastUserMsg = [...messages].reverse().find(m => m.role === 'user')
 
     if (userId !== 'anonymous') {
-      await adapter.upsert('users', { id: userId }, 'id')
+      await authSupabase.from('users').upsert({ id: userId }, { onConflict: 'id', ignoreDuplicates: true })
     }
 
     if (!conversationId) {
       const title = lastUserMsg?.content?.slice(0, 60) || 'New conversation'
-      const result = await adapter.insert<{ id: string }[]>('conversations', {
-        user_id: userId === 'anonymous' ? null : userId,
-        title,
-        mode,
-      })
-      conversationId = (result.data as any)?.[0]?.id ?? null
+      const { data: conv } = await authSupabase
+        .from('conversations')
+        .insert({ user_id: userId === 'anonymous' ? null : userId, title, mode })
+        .select('id')
+        .single()
+      conversationId = conv?.id ?? null
     }
 
     if (conversationId && lastUserMsg) {
-      await adapter.insert('messages', {
+      await authSupabase.from('messages').insert({
         conv_id: conversationId,
         role:    'user',
         content: lastUserMsg.content,
       })
     }
-  } catch {
-    // Fail silently
+  } catch (e) {
+    console.error('DB write error:', e)
   }
 
   const systemPrompt = [
@@ -186,7 +199,7 @@ export async function POST(req: Request) {
             controller.close()
             if (conversationId) {
               try {
-                await adapter.insert('messages', {
+                await authSupabase.from('messages').insert({
                   conv_id: conversationId,
                   role:    'assistant',
                   content: fullResponse,
@@ -194,11 +207,16 @@ export async function POST(req: Request) {
                 if (userId !== 'anonymous') {
                   const observations = extractObservations(fullResponse, messages)
                   for (const obs of observations) {
-                    await logObservation(adapter, userId, obs.key, obs.value)
+                    await authSupabase.from('arbi_memory').upsert({
+                      user_id:    userId,
+                      key:        obs.key,
+                      value:      obs.value,
+                      updated_at: new Date().toISOString(),
+                    }, { onConflict: 'user_id,key' })
                   }
                 }
-              } catch {
-                // Fail silently
+              } catch (e) {
+                console.error('Post-stream save error:', e)
               }
             }
           }
