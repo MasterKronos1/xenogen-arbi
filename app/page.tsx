@@ -42,7 +42,7 @@ type Message = { role: 'user' | 'assistant'; content: string; time?: string; sug
 
 const PLATFORM_LINKS = [
   { label: 'XenoGen Skills',   color: '#00e5ff', url: 'https://xenogen-skills.vercel.app', icon: <BookOpen size={12}/> },
-  { label: 'Guuz Marketplace', color: '#f0c040', url: '#',                                  icon: <ShoppingBag size={12}/> },
+  { label: 'Guuz Marketplace', color: '#f0c040', url: '/guuz',                              icon: <ShoppingBag size={12}/> },
   { label: 'Career Engine',    color: '#40c4ff', url: '#',                                  icon: <Briefcase size={12}/> },
 ]
 
@@ -776,7 +776,11 @@ export default function ARBIProduction() {
             <div className="platform-section">
               <div className="sec-label">Ecosystem</div>
               {PLATFORM_LINKS.map(p=>(
-                <div key={p.label} className="pl-item" onClick={()=>p.url!=='#'&&window.open(p.url,'_blank')}>
+                <div key={p.label} className="pl-item" onClick={()=>{
+                  if(p.url==='#') return
+                  if(p.url.startsWith('/')) router.push(p.url)
+                  else window.open(p.url,'_blank')
+                }}>
                   <div className="pl-dot" style={{background:p.color}}/>
                   <span className="pl-name">{p.label}</span>
                   <ChevronRight size={11} color="var(--text-muted)"/>
@@ -785,6 +789,12 @@ export default function ARBIProduction() {
             </div>
           )}
 
+          {authUser?.email === 'nathimthunzini@gmail.com' && (
+            <button className="signout-btn" onClick={() => router.push('/admin')}
+              style={{color:'var(--accent)',opacity:0.7}}>
+              ⬡ Control Plane
+            </button>
+          )}
           <button className="signout-btn" onClick={handleSignOut}><LogOut size={13}/> Sign out</button>
         </div>
 
