@@ -1049,8 +1049,7 @@ Copy the code to run locally.`} : null)
       }
 
       // Detect code blocks — open split panel
-      const codeMatch = fullResponse.match(/```(\w+)?
-([\s\S]+?)```/)
+      const codeMatch = fullResponse.match(new RegExp('```(\w+)?\n([\s\S]+?)```'))
       if (codeMatch && !codePanel) {
         const lang = codeMatch[1] || 'javascript'
         const code = codeMatch[2].trim()
