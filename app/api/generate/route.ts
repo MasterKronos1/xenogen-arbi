@@ -21,7 +21,7 @@ export async function POST(req: Request) {
   if (type === 'image') {
     const width   = (options.width  as number) || 1024
     const height  = (options.height as number) || 768
-    const model   = (options.model  as string) || 'flux'
+    const model   = (options.model  as string) || 'flux-schnell'
     const encoded = encodeURIComponent(prompt)
     const seed    = Math.floor(Math.random() * 999999)
 
