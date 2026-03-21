@@ -1476,13 +1476,9 @@ Copy the code to run locally.`} : null)
           <span className="agents-panel-title">Agent Pipeline</span>
           <button className="agents-close" onClick={()=>setShowAgents(false)}>✕</button>
         </div>
-
-        {/* Live agent canvas */}
         <div className="agent-canvas-area">
           <canvas ref={agentCanvasRef}/>
         </div>
-
-        {/* CMD Log */}
         <div className="cmd-shell" style={{flex:1,minHeight:0}}>
           <div className="cmd-header">
             <div className="cmd-dot" style={{background:'#e55039'}}/>
@@ -1542,8 +1538,6 @@ Copy the code to run locally.`} : null)
             </button>
           </div>
         </div>
-
-        {/* Task input */}
         <div className="agent-task-input">
           <input className="agent-task-field"
             placeholder="Describe a task for the agent pipeline..."
