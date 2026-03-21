@@ -953,7 +953,7 @@ export default function ARBIProduction() {
           warn:  (...a: any[]) => logs.push('WARN: ' + a.map(String).join(' ')),
         }
         try {
-          iframe.contentWindow?.eval(code)
+          (iframe.contentWindow as any)?.eval(code)
           setCodePanel(p => p ? {...p, running: false, output: logs.join('\n') || '✓ Executed (no output)'} : null)
         } catch(e: any) {
           setCodePanel(p => p ? {...p, running: false, output: 'Runtime error: ' + e.message} : null)
