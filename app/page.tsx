@@ -1503,8 +1503,7 @@ Copy the code to run locally.`} : null)
                   <span className="cmd-agent">[{log.symbol} {log.name||log.agent}]</span>
                   <span className="cmd-prompt"> →</span>
                 </div>
-                {log.output.split('
-').map((line,j)=>(
+                {log.output.split(\n').map((line,j)=>(
                   <div key={j} className="cmd-line" style={{paddingLeft:16}}>
                     <span className={log.agent==='system'?'cmd-error':'cmd-text'}>{line}</span>
                   </div>
