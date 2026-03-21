@@ -1149,8 +1149,7 @@ export default function ARBIProduction() {
                     {agentLogs.map((log,i)=>(
                       <div key={i}>
                         <div className="cmd-line"><span className="cmd-agent">[{log.symbol} {log.name||log.agent}]</span><span className="cmd-prompt"> →</span></div>
-                        {log.output.split('
-').map((line,j)=>(
+                        {log.output.split('\n').map((line,j)=>(
                           <div key={j} className="cmd-line" style={{paddingLeft:16}}>
                             <span className={log.agent==='system'?'cmd-error':'cmd-text'}>{line}</span>
                           </div>
