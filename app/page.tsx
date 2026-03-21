@@ -954,8 +954,7 @@ export default function ARBIProduction() {
         }
         try {
           iframe.contentWindow?.eval(code)
-          setCodePanel(p => p ? {...p, running: false, output: logs.join('
-') || '✓ Executed (no output)'} : null)
+          setCodePanel(p => p ? {...p, running: false, output: logs.join('\n') || '✓ Executed (no output)'} : null)
         } catch(e: any) {
           setCodePanel(p => p ? {...p, running: false, output: 'Runtime error: ' + e.message} : null)
         } finally {
