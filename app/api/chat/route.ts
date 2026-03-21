@@ -1,9 +1,9 @@
 export const runtime = 'nodejs'
 
 import Groq from 'groq-sdk'
-import { getStorageAdapter } from '@/lib/adapters/supabase-adapter'
+import { createClient } from '@supabase/supabase-js'
 import { getUserMemory, getOrCreateUser, buildMemoryContext } from '@/lib/user'
-import { buildARBISystemContext, logObservation } from '@/lib/ecosystem'
+import { buildARBISystemContext } from '@/lib/ecosystem'
 
 const MODELS = [
   'llama-3.3-70b-versatile',
@@ -23,6 +23,12 @@ Layer 3 → Skills (education, upskilling) — xenogen-skills.vercel.app
 Layer 4 → Guuz (marketplace, first income)
 Layer 5 → Profile (sovereign credential)
 Layer 6 → Career (employment and entrepreneurship)
+
+STAGE PROGRESSION RULES:
+When you determine a user has genuinely completed or outgrown their current stage, include this exact tag in your response:
+[STAGE_UPDATE: <stage_id>]
+Valid stage IDs: groundzero, btu, skills, guuz, career
+Only advance one stage at a time. Only do this when it is clearly warranted by what the user has shared.
 
 GEOGRAPHIC CONTEXT: Johannesburg/Gauteng, South Africa. High unemployment. Large informal economy. Many people have real skills but no credentials. Trust in systems is low — earn it.
 
@@ -45,6 +51,8 @@ You think clearly, speak plainly, and don't pad responses with unnecessary words
 
 FORMAT: Use markdown naturally. **Bold** for emphasis. Code blocks for code. Bullet lists when listing. Match response length to what the question actually needs.`
 
+const STAGE_ORDER = ['groundzero', 'btu', 'skills', 'guuz', 'career']
+
 function extractObservations(
   response: string,
   messages: { role: string; content: string }[]
@@ -65,12 +73,64 @@ function extractObservations(
     obs.push({ key: 'emotional_state', value: 'anxious_needs_grounding' })
   if (allUserText.includes('ready') || allUserText.includes('lets go') || allUserText.includes('start'))
     obs.push({ key: 'emotional_state', value: 'motivated_ready' })
-  if (response.toLowerCase().includes('groundzero') || response.toLowerCase().includes('ground zero'))
-    obs.push({ key: 'current_stage', value: 'groundzero' })
-  if (response.toLowerCase().includes('skills') && response.toLowerCase().includes('xenogen'))
-    obs.push({ key: 'current_stage', value: 'skills' })
 
   return obs
+}
+
+function extractStageUpdate(response: string): string | null {
+  const match = response.match(/\[STAGE_UPDATE:\s*([\w]+)\]/)
+  if (!match) return null
+  const stage = match[1].trim().toLowerCase()
+  return STAGE_ORDER.includes(stage) ? stage : null
+}
+
+function stripStageTags(response: string): string {
+  return response.replace(/\[STAGE_UPDATE:\s*[\w]+\]/g, '').trim()
+}
+
+async function getRecentConversationHistory(
+  supabase: any,
+  userId: string,
+  currentConvId: string | null,
+  limit = 3
+): Promise<string> {
+  try {
+    // Get last N conversations excluding current
+    let query = supabase
+      .from('conversations')
+      .select('id, title, created_at')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(limit + 1)
+
+    const { data: convs } = await query
+    if (!convs || convs.length === 0) return ''
+
+    const pastConvs = convs.filter((c: any) => c.id !== currentConvId).slice(0, limit)
+    if (pastConvs.length === 0) return ''
+
+    // Get last message from each past conversation
+    const summaries: string[] = []
+    for (const conv of pastConvs) {
+      const { data: msgs } = await supabase
+        .from('messages')
+        .select('role, content')
+        .eq('conv_id', conv.id)
+        .order('created_at', { ascending: false })
+        .limit(2)
+
+      if (msgs && msgs.length > 0) {
+        const lastMsg = msgs[0]
+        summaries.push(`"${conv.title}": ${lastMsg.content.slice(0, 120)}...`)
+      }
+    }
+
+    if (summaries.length === 0) return ''
+
+    return `\n\nRECENT CONVERSATION HISTORY:\n${summaries.join('\n')}\n`
+  } catch {
+    return ''
+  }
 }
 
 export async function POST(req: Request) {
@@ -84,7 +144,7 @@ export async function POST(req: Request) {
   let mode           = 'xeno'
   let userId         = 'anonymous'
   let conversationId: string | null = null
-  let accessToken:   string | null = null
+  let accessToken:   string | null  = null
 
   try {
     const body     = await req.json()
@@ -97,9 +157,7 @@ export async function POST(req: Request) {
     return new Response('Invalid request.', { status: 400 })
   }
 
-  // Create authenticated Supabase client using user's access token
-  // This ensures RLS policies pass for all DB writes
-  const { createClient } = await import('@supabase/supabase-js')
+  // Authenticated Supabase client — carries user's token so RLS passes
   const authSupabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -108,33 +166,38 @@ export async function POST(req: Request) {
     } : {}
   )
 
-  const adapter = getStorageAdapter()
-  let memoryContext    = ''
-  let ecosystemContext = ''
+  // ── BUILD CONTEXT ─────────────────────────────────────────────
+  let memoryContext       = ''
+  let ecosystemContext    = ''
+  let conversationContext = ''
 
   try {
-    ecosystemContext = await buildARBISystemContext(adapter)
-  } catch {
-    // Non-blocking
-  }
+    ecosystemContext = await buildARBISystemContext(authSupabase as any)
+  } catch { /* non-blocking */ }
 
   if (userId !== 'anonymous') {
     try {
       const [profile, memories] = await Promise.all([
-        getOrCreateUser(adapter as any, userId),
-        getUserMemory(adapter as any, userId),
+        getOrCreateUser(authSupabase as any, userId),
+        getUserMemory(authSupabase as any, userId),
       ])
       memoryContext = buildMemoryContext(profile, memories)
-    } catch {
-      // Fail silently
-    }
+
+      // Get recent conversation history for continuity
+      conversationContext = await getRecentConversationHistory(
+        authSupabase, userId, conversationId
+      )
+    } catch { /* fail silently */ }
   }
 
+  // ── SAVE: conversation + user message ────────────────────────
   try {
     const lastUserMsg = [...messages].reverse().find(m => m.role === 'user')
 
     if (userId !== 'anonymous') {
-      await authSupabase.from('users').upsert({ id: userId }, { onConflict: 'id', ignoreDuplicates: true })
+      await authSupabase
+        .from('users')
+        .upsert({ id: userId }, { onConflict: 'id', ignoreDuplicates: true })
     }
 
     if (!conversationId) {
@@ -158,11 +221,11 @@ export async function POST(req: Request) {
     console.error('DB write error:', e)
   }
 
-  const systemPrompt = [
-    mode === 'open' ? SYSTEM_OPEN : SYSTEM_XENO,
-    ecosystemContext,
-    memoryContext,
-  ].filter(Boolean).join('\n\n')
+  // ── BUILD SYSTEM PROMPT ───────────────────────────────────────
+  const basePrompt   = mode === 'open' ? SYSTEM_OPEN : SYSTEM_XENO
+  const systemPrompt = [basePrompt, ecosystemContext, memoryContext, conversationContext]
+    .filter(Boolean)
+    .join('\n\n')
 
   const groq = new Groq({ apiKey })
 
@@ -192,19 +255,43 @@ export async function POST(req: Request) {
               const text = chunk.choices[0]?.delta?.content || ''
               if (text) {
                 fullResponse += text
+                // Stream without stage tags
+                const clean = stripStageTags(fullResponse)
                 controller.enqueue(encoder.encode(text))
               }
             }
           } finally {
             controller.close()
+
+            // ── POST-STREAM: save + update stage + log observations ──
             if (conversationId) {
               try {
+                const cleanResponse = stripStageTags(fullResponse)
+
                 await authSupabase.from('messages').insert({
                   conv_id: conversationId,
                   role:    'assistant',
-                  content: fullResponse,
+                  content: cleanResponse,
                 })
+
                 if (userId !== 'anonymous') {
+                  // Check for stage progression
+                  const newStage = extractStageUpdate(fullResponse)
+                  if (newStage) {
+                    await authSupabase
+                      .from('users')
+                      .update({ stage: newStage })
+                      .eq('id', userId)
+
+                    await authSupabase.from('arbi_memory').upsert({
+                      user_id:    userId,
+                      key:        'current_stage',
+                      value:      newStage,
+                      updated_at: new Date().toISOString(),
+                    }, { onConflict: 'user_id,key' })
+                  }
+
+                  // Save observations
                   const observations = extractObservations(fullResponse, messages)
                   for (const obs of observations) {
                     await authSupabase.from('arbi_memory').upsert({
