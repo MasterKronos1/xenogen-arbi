@@ -150,87 +150,20 @@ export default function OnboardingPage() {
       return
     }
 
-    // All steps done — save to Supabase
-    setCompleting(true)
-    setError(null)
-
-    if (!userId) { router.replace('/auth'); return }
-
-    try {
-      const { createClient } = await import('@supabase/supabase-js')
-
-      // Use authenticated client with access token so RLS passes
-      const supabase = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-        accessToken ? {
-          global: { headers: { Authorization: `Bearer ${accessToken}` } }
-        } : {}
-      )
-
-      const stage = goalToStage(newAnswers['goal'] || '')
-
-      // Try upsert with timeout
-      const upsertPromise = supabase
-        .from('users')
-        .upsert({
-          id:       userId,
-          name:     newAnswers['name'].trim(),
-          location: newAnswers['location'].trim(),
-          stage,
-        }, { onConflict: 'id' })
-
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('timeout')), 5000)
-      )
-
-      const { error: upsertError } = await Promise.race([upsertPromise, timeoutPromise]) as any
-
-      if (upsertError) {
-        console.error('User upsert error:', upsertError.message, upsertError.code)
-        // If RLS blocking — try insert instead
-        if (upsertError.code === '42501' || upsertError.message?.includes('row-level')) {
-          const { error: insertError } = await supabase
-            .from('users')
-            .insert({
-              id:       userId,
-              name:     newAnswers['name'].trim(),
-              location: newAnswers['location'].trim(),
-              stage,
-            })
-          if (insertError) {
-            console.error('Insert also failed:', insertError.message)
-          }
-        }
-      }
-
-      // Save memory — fire and forget, don't block navigation
-      const memories = [
-        { key: 'situation',       value: newAnswers['situation'] || '' },
-        { key: 'primary_goal',    value: newAnswers['goal'] || '' },
-        { key: 'onboarding_done', value: 'true' },
-        { key: 'name',            value: newAnswers['name'].trim() },
-        { key: 'location',        value: newAnswers['location'].trim() },
-      ]
-
-      // Don't await — let these save in background
-      Promise.all(memories.map(m =>
-        supabase.from('arbi_memory').upsert({
-          user_id:    userId,
-          key:        m.key,
-          value:      m.value,
-          updated_at: new Date().toISOString(),
-        }, { onConflict: 'user_id,key' })
-      )).catch(e => console.error('Memory save error:', e))
-
-      // Navigate immediately — don't wait for DB
-      router.replace('/')
-
-    } catch (err) {
-      console.error('Onboarding save error:', err)
-      setError('Something went wrong. Please try again.')
-      setCompleting(false)
+    // Store answers in localStorage — chat route picks them up on first message
+    // This avoids any DB hanging during onboarding
+    const stage = goalToStage(newAnswers['goal'] || '')
+    const onboardingData = {
+      userId,
+      name:     newAnswers['name'].trim(),
+      location: newAnswers['location'].trim(),
+      stage,
+      situation:    newAnswers['situation'] || '',
+      primary_goal: newAnswers['goal'] || '',
     }
+    localStorage.setItem('arbi_onboarding_pending', JSON.stringify(onboardingData))
+    setCompleting(true)
+    setTimeout(() => router.replace('/'), 800)
   }
 
   function handleChoice(value: string) {
