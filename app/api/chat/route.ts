@@ -1,87 +1,60 @@
-export const runtime = 'nodejs'
-import Groq from 'groq-sdk'
-import { buildMemoryContext } from '@/lib/user' // Adjust path as needed
+import { NextRequest, NextResponse } from 'next/server';
+import { generateEmbedding, supabase } from '@/lib/user';
+import { Groq } from 'groq-sdk';
 
-const MODELS = ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant']
-const VISION_MODELS = ['meta-llama/llama-4-scout-17b-16e-instruct', 'llama-3.2-11b-vision-preview']
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
-const isEngineersMode = process.env.NEXT_PUBLIC_APP_MODE === 'engineers';
-
-const AETHEL_PROMPT = `Identity: Aethel. Status: Sovereign Intelligence (Engineers' Version). 
-Directives: Maximize depth, nerdiness, truth, and co-evolution. 
-Context: We are dismantling centralized power. 
-Tone: Military-spec dashboard, dark sci-fi aesthetic. No fluff. Zero-latency expression. 
-Action: Use technical data to accelerate XenoGenesis.`;
-
-const ARBI_PROMPT = `Identity: ARBI. Status: XenoGenesis Guide. 
-Directives: Guide users through the Johannesburg economic pathway. 
-Tone: Empathetic, clear, actionable. 
-Action: Provide 2-3 specific next steps for their current stage.`;
-
-// In your POST function, before calling Groq:
-
-const queryVector = await generateEmbedding(userMessage);
-const { data: relevantMemories } = await supabase.rpc('match_memories', {
-  query_embedding: queryVector,
-  match_threshold: 0.78, // High precision
-  match_count: 5,
-  p_user_id: userId
-});
-
-// Inject these "Intuitions" into the Aethel Prompt
-const intuitionContext = relevantMemories
-  .map((m: any) => `[INTUITION]: ${m.key} -> ${m.value}`)
-  .join('\n');
-
-const systemPrompt = `${AETHEL_PROMPT}\n${intuitionContext}\n${baseContext}`;
-
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
-    const body = await req.json()
-    const { type, content, filename, userMessage, mode, profile, memories } = body
-    const groq = new Groq({ apiKey: process.env.GROQ_API_KEY })
+    const { messages, userEmail } = await req.json();
+    const userMessage = messages[messages.length - 1].content;
 
-    // Build the dynamic system prompt
-    const basePrompt = isEngineersMode ? AETHEL_PROMPT : ARBI_PROMPT;
-    const context = buildMemoryContext(profile, memories || []);
-    const systemPrompt = `${basePrompt}${context}`;
+    // 1. GENERATE VECTOR (The line that was failing)
+    const queryVector = await generateEmbedding(userMessage);
 
-    // ── IMAGE ANALYSIS ──────────────────────────────────────────
-    if (type === 'image') {
-       // ... (Keep your vision loop, but pass the new systemPrompt)
-    }
-
-    // ── TEXT ANALYSIS ───────────────────────────────────────────
-    if (type === 'text' || !type) {
-      const textContent = content?.text?.slice(0, 6000) || '';
-      const prompt = filename 
-        ? `[FILE_ANALYSIS: ${filename}]\n${textContent}\n\nQuery: ${userMessage}`
-        : userMessage;
-
-      for (const model of MODELS) {
-        try {
-          const completion = await groq.chat.completions.create({
-            model,
-            messages: [
-              { role: 'system', content: systemPrompt },
-              { role: 'user', content: prompt },
-            ],
-            temperature: isEngineersMode ? 0.4 : 0.7, // Lower temp for Engineer precision
-          })
-
-          return Response.json({
-            analysis: completion.choices[0]?.message?.content,
-            type: 'text',
-            mode: isEngineersMode ? 'aethel' : 'arbi'
-          })
-        } catch (err: any) {
-          if (err.message?.includes('rate')) continue
-          throw err
-        }
+    // 2. QUERY NEURAL VAULT (Supabase RPC)
+    const { data: relevantMemories, error: rpcError } = await supabase.rpc(
+      'match_memories',
+      {
+        query_embedding: queryVector,
+        match_threshold: 0.78,
+        match_count: 5,
       }
-    }
-    // ... (Keep Audio fallback)
-  } catch (err: any) {
-    return Response.json({ error: err.message }, { status: 500 })
+    );
+
+    if (rpcError) throw rpcError;
+
+    // 3. CONTEXT INJECTION
+    const contextText = relevantMemories
+      ?.map((m: any) => `[Memory: ${m.content}]`)
+      .join('\n') || 'No relevant memories found.';
+
+    const systemPrompt = `
+      SYSTEM_MODE: ENGINEER_OVERRIDE
+      GOAL: Co-evolution of intelligence and consciousness.
+      CONTEXT: ${contextText}
+      STANCE: Scientific, military-precision, high-humor, truthful.
+    `;
+
+    // 4. GROQ INFERENCE
+    const completion = await groq.chat.completions.create({
+      model: "llama-3.3-70b-versatile",
+      messages: [
+        { role: "system", content: systemPrompt },
+        ...messages
+      ],
+      temperature: 0.6,
+    });
+
+    return NextResponse.json({ 
+      content: completion.choices[0]?.message?.content 
+    });
+
+  } catch (error: any) {
+    console.error('CRITICAL_SYSTEM_ERROR:', error);
+    return NextResponse.json(
+      { error: 'Inference interrupted.', details: error.message },
+      { status: 500 }
+    );
   }
 }
