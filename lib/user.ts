@@ -76,3 +76,22 @@ export function buildMemoryContext(memories: any[]): string {
   if (!memories || memories.length === 0) return "No prior vault data.";
   return memories.map((m) => `[${m.key}]: ${m.value}`).join('\n');
 }
+
+/**
+ * Updates the user's profile metadata in the 'users' table.
+ * Used during onboarding to lock in identity and preferences.
+ */
+export async function updateUserProfile(userId: string, data: Partial<UserProfile>) {
+  const { data: updatedUser, error } = await supabase
+    .from('users')
+    .update(data)
+    .eq('id', userId)
+    .select()
+    .single();
+
+  if (error) {
+    console.error("PROFILE_UPDATE_FAILURE:", error);
+    throw error;
+  }
+  return updatedUser;
+}
