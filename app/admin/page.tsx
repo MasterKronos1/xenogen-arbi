@@ -5,6 +5,9 @@ import { useRouter } from 'next/navigation'
 
 const ADMIN_EMAIL = 'nathimthunzini@gmail.com'
 
+const [selectedAction, setSelectedAction] = useState<SovereigntyAction | null>(null);
+// ... Render LedgerList on left, SignaturePad on right.
+
 type Stats = {
   users:         number
   conversations: number
