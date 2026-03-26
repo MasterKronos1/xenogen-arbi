@@ -180,11 +180,19 @@ export default function AdminDashboard() {
       setUsers(usersData || [])
       setMemories(memoriesData || [])
 
-      // Load ecosystem registry
-      const res = await fetch('/api/system')
-      if (res.ok) {
-        const { state } = await res.json()
-        setOrgs(state.organizations || [])
+      // Load ecosystem registry from Supabase directly
+      const { data: registryData } = await supabase
+        .from('ecosystem_registry')
+        .select('*')
+        .order('layer', { ascending: true, nullsFirst: false })
+      if (registryData) setOrgs(registryData)
+      else {
+        // Fall back to /api/system
+        const res = await fetch('/api/system')
+        if (res.ok) {
+          const { state } = await res.json()
+          setOrgs(state.organizations || [])
+        }
       }
 
       setLastRefresh(new Date().toLocaleTimeString())
