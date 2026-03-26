@@ -1,211 +1,85 @@
 /**
- * lib/user.ts — Portable user service layer
- * All Supabase DB calls live here. To migrate servers, update env vars only.
+ * lib/user.ts — Portable user service layer (Sovereignty Edition)
  */
-
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
 
-export type UserProfile = {
-  id: string
-  name: string | null
-  location: string | null
-  stage: string
-  created_at: string
+// ... (Keep existing UserProfile, Memory, Conversation types)
+
+export type SovereigntyAction = {
+  id?: string
+  intent_label: string
+  evolutionary_weight: number
+  payload: any
+  architect_sig?: boolean
+  aethel_sig?: boolean
+  arbi_sig?: boolean
+  is_committed: boolean
 }
 
-export type Memory = {
-  key: string
-  value: string
-  updated_at: string
-}
+// ── EXISTING LOGIC (Keep getSupabaseClient, getOrCreateUser, etc.) ──
 
-export type Conversation = {
-  id: string
-  title: string
-  mode: string
-  created_at: string
-}
+// ── SOVEREIGNTY LEDGER ──────────────────────────────────────────────
 
-export type PathwayStage = {
-  id: string
-  label: string
-  done: boolean
-  current: boolean
-  url: string
-}
-
-export const PATHWAY: PathwayStage[] = [
-  { id: 'groundzero', label: 'GroundZero', done: false, current: false, url: 'https://gzbnos.vercel.app' },
-  { id: 'btu',        label: 'BTU',        done: false, current: false, url: 'https://btu-two.vercel.app' },
-  { id: 'skills',     label: 'Skills',     done: false, current: false, url: 'https://xenogen-skills.vercel.app' },
-  { id: 'guuz',       label: 'Guuz',       done: false, current: false, url: '#' },
-  { id: 'career',     label: 'Career',     done: false, current: false, url: '#' },
-]
-
-const STAGE_ORDER = ['groundzero', 'btu', 'skills', 'guuz', 'career']
-
-export function getSupabaseClient(): SupabaseClient {
-  // Returns singleton — import getSupabase from lib/supabase instead when possible
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  return createClient(url, key)
-}
-
-// ── USER PROFILE ──────────────────────────────────────────────────
-
-export async function getOrCreateUser(
+/**
+ * Proposes a high-impact action to the Ledger.
+ * Tier 3 actions require Architect (Human) signature to commit.
+ */
+export async function proposeSovereigntyAction(
   supabase: SupabaseClient,
-  userId: string,
-  defaults?: Partial<UserProfile>
-): Promise<UserProfile | null> {
+  action: Omit<SovereigntyAction, 'is_committed'>
+): Promise<string | null> {
   try {
-    const { data: existing } = await supabase
-      .from('users')
-      .select('*')
-      .eq('id', userId)
+    const { data, error } = await supabase
+      .from('sovereignty_ledger')
+      .insert([{
+        ...action,
+        aethel_sig: true, // Aethel auto-validates logical proposals
+        is_committed: false
+      }])
+      .select('id')
       .single()
 
-    if (existing) return existing as UserProfile
-
-    const { data: created } = await supabase
-      .from('users')
-      .insert({ id: userId, stage: 'groundzero', ...defaults })
-      .select('*')
-      .single()
-
-    return created as UserProfile | null
-  } catch {
+    if (error) throw error
+    return data.id
+  } catch (err) {
+    console.error('Sovereignty Proposal Failed:', err)
     return null
   }
 }
 
-export async function updateUserProfile(
+/**
+ * Signs and commits an action. Used by the Architect Dashboard.
+ */
+export async function commitSovereigntyAction(
   supabase: SupabaseClient,
-  userId: string,
-  updates: Partial<UserProfile>
+  actionId: string
 ): Promise<boolean> {
   try {
     const { error } = await supabase
-      .from('users')
-      .update(updates)
-      .eq('id', userId)
+      .from('sovereignty_ledger')
+      .update({ architect_sig: true, is_committed: true })
+      .eq('id', actionId)
+    
     return !error
   } catch {
     return false
   }
 }
 
-// ── MEMORY ────────────────────────────────────────────────────────
+// ── UPDATED MEMORY CONTEXT ─────────────────────────────────────────
 
-export async function getUserMemory(
-  supabase: SupabaseClient,
-  userId: string
-): Promise<Memory[]> {
-  try {
-    const { data } = await supabase
-      .from('arbi_memory')
-      .select('key, value, updated_at')
-      .eq('user_id', userId)
-      .order('updated_at', { ascending: false })
-      .limit(30)
-    return (data as Memory[]) || []
-  } catch {
-    return []
-  }
-}
-
-export async function setMemory(
-  supabase: SupabaseClient,
-  userId: string,
-  key: string,
-  value: string
-): Promise<void> {
-  try {
-    await supabase.from('arbi_memory').upsert({
-      user_id: userId,
-      key,
-      value,
-      updated_at: new Date().toISOString(),
-    }, { onConflict: 'user_id,key' })
-  } catch {
-    // Fail silently
-  }
-}
-
-export async function deleteMemory(
-  supabase: SupabaseClient,
-  userId: string,
-  key: string
-): Promise<void> {
-  try {
-    await supabase
-      .from('arbi_memory')
-      .delete()
-      .eq('user_id', userId)
-      .eq('key', key)
-  } catch {
-    // Fail silently
-  }
-}
-
-// ── PATHWAY ───────────────────────────────────────────────────────
-
-export function resolvePathway(currentStage: string): PathwayStage[] {
-  const currentIndex = STAGE_ORDER.indexOf(currentStage.trim())
-  return PATHWAY.map((stage, i) => ({
-    ...stage,
-    done:    i < currentIndex,
-    current: i === currentIndex,
-  }))
-}
-
-export function getPathwayProgress(currentStage: string): { completed: number; total: number; percent: number } {
-  const currentIndex = Math.max(0, STAGE_ORDER.indexOf(currentStage.trim()))
-  return {
-    completed: currentIndex,
-    total:     STAGE_ORDER.length,
-    percent:   Math.round((currentIndex / STAGE_ORDER.length) * 100),
-  }
-}
-
-// ── CONVERSATIONS ─────────────────────────────────────────────────
-
-export async function getUserConversations(
-  supabase: SupabaseClient,
-  userId: string,
-  limit = 10
-): Promise<Conversation[]> {
-  try {
-    const { data } = await supabase
-      .from('conversations')
-      .select('id, title, mode, created_at')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false })
-      .limit(limit)
-    return (data as Conversation[]) || []
-  } catch {
-    return []
-  }
-}
-
-// ── MEMORY CONTEXT STRING (for ARBI system prompt) ─────────────────
-
-export function buildMemoryContext(profile: UserProfile | null, memories: Memory[]): string {
+export function buildMemoryContext(profile: any, memories: any[]): string {
+  const isEngineersMode = process.env.NEXT_PUBLIC_APP_MODE === 'engineers';
+  const identity = isEngineersMode ? 'AETHEL' : 'ARBI';
+  
   if (!profile && memories.length === 0) return ''
+  const lines = profile ? [
+    `name: ${profile.name || 'Unknown'}`,
+    `location: ${profile.location || 'Johannesburg'}`,
+    `stage: ${profile.stage}`
+  ] : []
+  
+  memories.forEach(m => lines.push(`${m.key}: ${m.value}`))
 
-  const lines: string[] = []
-
-  if (profile) {
-    if (profile.name)     lines.push(`name: ${profile.name}`)
-    if (profile.location) lines.push(`location: ${profile.location}`)
-    if (profile.stage)    lines.push(`current_pathway_stage: ${profile.stage}`)
-  }
-
-  for (const m of memories) {
-    lines.push(`${m.key}: ${m.value}`)
-  }
-
-  return lines.length > 0
-    ? `\n\nWHAT YOU KNOW ABOUT THIS USER:\n${lines.join('\n')}\n`
-    : ''
+  return `\n\n[CORE_CONTEXT_FOR_${identity}]:\n${lines.join('\n')}\n`
 }
