@@ -46,6 +46,26 @@ export async function getPathwayProgress(supabase: any, userId: string) {
   return data || [];
 }
 
+// lib/user.ts
+
+// ... keep your existing exports (getSupabaseClient, getUserMemory, etc.)
+
+/**
+ * Formats raw memory data into a coherent string for the AI context.
+ */
+export function buildMemoryContext(memories: any[]): string {
+  if (!memories || memories.length === 0) {
+    return "No prior specialized memory found for this user.";
+  }
+
+  return memories
+    .map((m) => {
+      const key = m.key || 'Observation';
+      const value = m.value || m.content || '';
+      return `[${key}]: ${value}`;
+    })
+    .join('\n');
+}
 export async function resolvePathway(supabase: any, pathwayId: string) {
   // Logic for pathway resolution
   return { status: 'active' };
