@@ -12,6 +12,53 @@ import {
 } from '@/lib/user';
 import { signOut } from '@/lib/auth'; // Ensure your auth lib is stable
 
+
+
+/**
+ * SET_MEMORY: Core function for the Neural Vault.
+ * Injects a key-pair value into the user's persistent memory.
+ */
+export async function setMemory(userId: string, key: string, value: string) {
+  // Generate embedding for the memory to allow semantic search later
+  const embedding = await generateEmbedding(`${key}: ${value}`);
+
+  const { data, error } = await supabase
+    .from('memories')
+    .upsert({ 
+      user_id: userId, 
+      key, 
+      value, 
+      embedding 
+    })
+    .select()
+    .single();
+
+  if (error) {
+    console.error("NEURAL_VAULT_WRITE_ERROR:", error);
+    throw error;
+  }
+  return data;
+}
+
+/**
+ * UPDATE_USER_PROFILE: Syncs onboarding data with the primary user record.
+ */
+export async function updateUserProfile(userId: string, updates: Partial<UserProfile>) {
+  const { data, error } = await supabase
+    .from('users')
+    .update(updates)
+    .eq('id', userId)
+    .select()
+    .single();
+
+  if (error) {
+    console.error("IDENTITY_SYNC_ERROR:", error);
+    throw error;
+  }
+  return data;
+}
+
+
 export default function EngineersDashboard() {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [memories, setMemories] = useState<Memory[]>([]);
