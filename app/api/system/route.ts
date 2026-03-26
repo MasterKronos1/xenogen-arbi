@@ -1,30 +1,36 @@
-export const runtime = 'nodejs'
+// app/api/system/route.ts
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
-/**
- * app/api/system/route.ts — System State Endpoint
- *  
- * ARBI reads ecosystem state through this endpoint.
- * Returns current registry state + storage health.
- * Used by control dashboard (future) and ARBI's context builder.
- */
-
-import { getEcosystemState } from '@/lib/ecosystem'
-import { getStorageAdapter } from '@/lib/adapters/supabase-adapter'
+import { getEcosystemState } from '@/lib/ecosystem';
+import { getStorageAdapter } from '@/lib/adapters/supabase-adapter';
 
 export async function GET() {
   try {
-    const adapter = getStorageAdapter()
-    const state   = await getEcosystemState(adapter)
+    // 1. Initialize the adapter
+    const adapter = getStorageAdapter();
+    
+    // 2. Fetch state using the adapter logic
+    const state = await getEcosystemState(adapter);
 
-    return Response.json({
-      ok:        true,
+    // 3. Explicit JSON Response
+    return new Response(JSON.stringify({
+      ok: true,
       timestamp: new Date().toISOString(),
       state,
-    })
+    }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' }
+    });
+
   } catch (err) {
-    return Response.json({
-      ok:    false,
+    console.error("SYSTEM_ROUTE_CRITICAL_FAILURE:", err);
+    return new Response(JSON.stringify({
+      ok: false,
       error: err instanceof Error ? err.message : 'System state unavailable',
-    }, { status: 500 })
+    }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
   }
 }
