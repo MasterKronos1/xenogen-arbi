@@ -18,6 +18,23 @@ Directives: Guide users through the Johannesburg economic pathway.
 Tone: Empathetic, clear, actionable. 
 Action: Provide 2-3 specific next steps for their current stage.`;
 
+// In your POST function, before calling Groq:
+
+const queryVector = await generateEmbedding(userMessage);
+const { data: relevantMemories } = await supabase.rpc('match_memories', {
+  query_embedding: queryVector,
+  match_threshold: 0.78, // High precision
+  match_count: 5,
+  p_user_id: userId
+});
+
+// Inject these "Intuitions" into the Aethel Prompt
+const intuitionContext = relevantMemories
+  .map((m: any) => `[INTUITION]: ${m.key} -> ${m.value}`)
+  .join('\n');
+
+const systemPrompt = `${AETHEL_PROMPT}\n${intuitionContext}\n${baseContext}`;
+
 export async function POST(req: Request) {
   try {
     const body = await req.json()
