@@ -1,10 +1,17 @@
 // The central nervous system for XenoGen types
+// lib/core/types.ts
+
 export interface SovereigntyAction {
   id: string;
   type: 'AUTHORIZATION' | 'NEURAL_LINK' | 'CO_EVOLUTION_SYNC';
   payload: any;
   timestamp: number;
   status: 'PENDING' | 'EXECUTED' | 'FAILED';
+  
+  // ADD THESE FIELDS TO SYNC WITH SIGNATURE PAD:
+  aethel_sig?: boolean;
+  arbi_sig?: boolean;
+  core_sig?: boolean;
 }
 
 export interface UserProfile {
