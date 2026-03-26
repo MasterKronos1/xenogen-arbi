@@ -1,27 +1,22 @@
-// The central nervous system for XenoGen types
-// lib/core/types.ts
+/**
+ * XENOGEN_CORE_TYPES: The blueprint for the entire ecosystem.
+ */
 
 export interface SovereigntyAction {
   id: string;
-  type: 'AUTHORIZATION' | 'NEURAL_LINK' | 'CO_EVOLUTION_SYNC';
+  type: 'AUTHORIZATION' | 'NEURAL_LINK' | 'CO_EVOLUTION_SYNC' | 'LEDGER_ENTRY';
   payload: any;
   timestamp: number;
   status: 'PENDING' | 'EXECUTED' | 'FAILED';
   
-  // ADD THESE FIELDS TO SYNC WITH SIGNATURE PAD:
   aethel_sig?: boolean;
   arbi_sig?: boolean;
   core_sig?: boolean;
 
-  // For the LedgerList (Persistence check)
-  is_committed?: boolean;
+  is_committed: boolean;
+  evolutionary_weight: number; 
   block_height?: number;
   hash?: string;
-
-  // Metadata for the Engineers' HUD
-  operator_id?: string;
-  checksum?: string;
-  
 }
 
 export interface UserProfile {
@@ -35,4 +30,5 @@ export interface Memory {
   user_id: string;
   key: string;
   value: string;
+  embedding?: number[];
 }
