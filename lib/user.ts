@@ -83,3 +83,38 @@ export function buildMemoryContext(profile: any, memories: any[]): string {
 
   return `\n\n[CORE_CONTEXT_FOR_${identity}]:\n${lines.join('\n')}\n`
 }
+
+
+// Add this to lib/user.ts
+
+/**
+ * Generates a vector embedding for a piece of text.
+ * This is the "Neural Fingerprint" of the memory.
+ */
+async function generateEmbedding(text: string): Promise<number[]> {
+  // Replace with your preferred embedding API (e.g., OpenAI, Voyage, or HuggingFace)
+  const response = await fetch('https://api.groq.com/openai/v1/embeddings', {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${process.env.GROQ_API_KEY}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model: 'nomic-embed-text-v1.5', input: text })
+  });
+  const json = await response.json();
+  return json.data[0].embedding;
+}
+
+export async function setSovereignMemory(
+  supabase: SupabaseClient,
+  userId: string,
+  key: string,
+  value: string
+): Promise<void> {
+  const embedding = await generateEmbedding(`${key}: ${value}`);
+  
+  await supabase.from('arbi_memory').upsert({
+    user_id: userId,
+    key,
+    value,
+    embedding,
+    updated_at: new Date().toISOString(),
+  }, { onConflict: 'user_id,key' });
+}
