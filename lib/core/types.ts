@@ -12,6 +12,11 @@ export interface SovereigntyAction {
   aethel_sig?: boolean;
   arbi_sig?: boolean;
   core_sig?: boolean;
+
+  // For the LedgerList (Persistence check)
+  is_committed?: boolean;
+  block_height?: number;
+  hash?: string;
 }
 
 export interface UserProfile {
