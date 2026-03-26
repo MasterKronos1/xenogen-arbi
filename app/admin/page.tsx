@@ -3,6 +3,27 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 
+
+// app/admin/page.tsx
+
+// 1. Add this interface near the top of the file
+interface SovereigntyAction {
+  id: string;
+  type: 'CONSCIOUSNESS_UPGRADE' | 'NEURAL_ARCHIVE' | 'SYSTEM_CORE_UPDATE' | 'CO_EVOLUTION_SYNC';
+  description: string;
+  status: 'PENDING' | 'SIGNED' | 'EXECUTED';
+  timestamp: string;
+  metadata?: Record<string, any>;
+}
+
+// ... existing imports like useState ...
+
+const ADMIN_EMAIL = 'nathimthunzini@gmail.com';
+
+// Now this line will stop throwing the error:
+const [selectedAction, setSelectedAction] = useState<SovereigntyAction | null>(null);
+
+
 const ADMIN_EMAIL = 'nathimthunzini@gmail.com'
 
 const [selectedAction, setSelectedAction] = useState<SovereigntyAction | null>(null);
