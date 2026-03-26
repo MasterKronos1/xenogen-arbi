@@ -1,10 +1,19 @@
+// proxy.ts
 import { NextRequest, NextResponse } from 'next/server'
 
-// Minimal proxy - auth handled client-side via Supabase localStorage session
-export async function proxy(request: NextRequest) {
+export async function middleware(request: NextRequest) {
+  // Explicitly allow system and chat routes to bypass any proxy logic
+  if (request.nextUrl.pathname.startsWith('/api/system') || 
+      request.nextUrl.pathname.startsWith('/api/chat')) {
+    return NextResponse.next()
+  }
+  
   return NextResponse.next()
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)',],
+  // Update matcher to be more precise
+  matcher: [
+    '/((?!_next/static|_next/image|favicon.ico|api/system|api/chat).*)',
+  ],
 }
