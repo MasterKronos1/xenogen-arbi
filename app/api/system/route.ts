@@ -2,7 +2,7 @@ export const runtime = 'nodejs'
 
 /**
  * app/api/system/route.ts — System State Endpoint
- *
+ *  
  * ARBI reads ecosystem state through this endpoint.
  * Returns current registry state + storage health.
  * Used by control dashboard (future) and ARBI's context builder.
