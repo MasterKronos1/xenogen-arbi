@@ -17,6 +17,11 @@ export interface SovereigntyAction {
   is_committed?: boolean;
   block_height?: number;
   hash?: string;
+
+  // Metadata for the Engineers' HUD
+  operator_id?: string;
+  checksum?: string;
+  
 }
 
 export interface UserProfile {
