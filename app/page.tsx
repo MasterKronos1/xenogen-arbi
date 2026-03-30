@@ -1302,9 +1302,11 @@ Copy the code to run locally.`} : null)
 
       // Handle generative image tag from ARBI
       let finalResponse = fullResponse
-      const genMatch = fullResponse.match(/\[GENERATE_IMAGE:([^\]]+)\]/)
+      console.log('[chat] checking for GENERATE_IMAGE tag in response...')
+      const genMatch = fullResponse.match(/\[GENERATE_IMAGE:\s*([^\]]+)\]/)
       if (genMatch) {
         const imgPrompt = genMatch[1].trim()
+        console.log('[chat] found GENERATE_IMAGE tag, prompt:', imgPrompt.slice(0,60))
         try {
           const imgRes  = await fetch('/api/generate', {
             method:  'POST',
@@ -1312,12 +1314,16 @@ Copy the code to run locally.`} : null)
             body:    JSON.stringify({ type: 'image', prompt: imgPrompt }),
           })
           const imgData = await imgRes.json()
+          console.log('[chat] generate response:', JSON.stringify(imgData).slice(0,100))
           if (imgData.url) {
-            // Keep the descriptive text, replace the tag with image widget tag
             finalResponse = fullResponse.replace(genMatch[0], '[IMG:' + imgData.url + ']')
+            setMessages(m=>{const c=[...m];c[c.length-1]={...c[c.length-1],content:finalResponse};return c})
           }
-          setMessages(m=>{const c=[...m];c[c.length-1]={...c[c.length-1],content:finalResponse};return c})
-        } catch { /* keep text */ }
+        } catch (e) {
+          console.error('[chat] image generation error:', e)
+        }
+      } else {
+        console.log('[chat] no GENERATE_IMAGE tag found in response')
       }
 
       const suggestions = generateSuggestions(finalResponse, mode)
