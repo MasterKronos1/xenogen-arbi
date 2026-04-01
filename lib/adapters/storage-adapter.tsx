@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 
 export default function SovereigntyDashboard() {
   const [actions, setActions] = useState<any[]>([]);
@@ -28,7 +28,7 @@ export default function SovereigntyDashboard() {
               <p className="text-sm text-zinc-300 mb-3">{action.intent_label}</p>
               <button 
                 className="w-full bg-green-900 hover:bg-green-700 text-black font-bold py-1 px-2 uppercase text-xs transition-colors"
-                onClick={() => /* signAction(action.id) */}
+                onClick={() => {}}
               >
                 Sign & Commit [Architect_Sig]
               </button>
