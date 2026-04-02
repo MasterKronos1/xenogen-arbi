@@ -45,6 +45,28 @@ Be the voice that turns thinking into clarity.`,
   },
 }
 
+
+//api/agents/route.ts
+
+const analystOutput = await runAgent("analyst", {
+  task,
+})
+
+const navigatorOutput = await runAgent("navigator", {
+  task,
+  previousOutputs: { analyst: analystOutput },
+})
+
+const finalOutput = await runAgent("synthesizer", {
+  task,
+  previousOutputs: {
+    analyst: analystOutput,
+    navigator: navigatorOutput,
+  },
+})
+
+
+
 async function runAgent(
   agentKey: keyof typeof AGENTS,
   userTask: string,
