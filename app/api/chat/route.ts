@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { generateEmbedding, supabase } from '@/lib/user';
+import { generateEmbedding } from '@/lib/ai/embeddings';
 import Groq from 'groq-sdk';
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
