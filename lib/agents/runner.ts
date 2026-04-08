@@ -1,25 +1,40 @@
-// /lib/agents/runner.ts
-
+import { groqClient } from "@/lib/groq"
 import { agentRegistry } from "./registry"
-import { groqClient } from "@/lib/groq" // your existing setup
+import { AgentName, AgentContext, AgentResult } from "./types"
 
 export async function runAgent(
-  agentName: string,
-  ctx: any
-): Promise<string> {
+  agentName: AgentName,
+  ctx: AgentContext
+): Promise<AgentResult> {
   const agent = agentRegistry[agentName]
 
-  if (!agent) throw new Error(`Agent ${agentName} not found`)
+  if (!agent) {
+    return {
+      agentName,
+      output: "",
+      error: `Agent "${agentName}" not found in registry`,
+    }
+  }
 
-  const prompt = agent.systemPrompt(ctx.task, ctx.previousOutputs)
+  try {
+    const systemPrompt = agent.systemPrompt(ctx.task, ctx.previousOutputs)
 
-  const completion = await groqClient.chat.completions.create({
-    model: agent.model,
-    messages: [
-      { role: "system", content: prompt },
-      { role: "user", content: ctx.task },
-    ],
-  })
+    const completion = await groqClient.chat.completions.create({
+      model: agent.model,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: ctx.task },
+      ],
+    })
 
-  return completion.choices[0]?.message?.content || ""
+    const output = completion.choices[0]?.message?.content ?? ""
+
+    const handoffMatch = output.match(/HANDOFF TO:\s*(\w+)\s*—\s*(.+)/)
+    const handoff = handoffMatch ? handoffMatch[0] : undefined
+
+    return { agentName, output, handoff }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unknown error"
+    return { agentName, output: "", error: message }
+  }
 }
