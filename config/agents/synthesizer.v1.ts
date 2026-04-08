@@ -1,18 +1,19 @@
-// /config/agents/synthesizer.v1.ts
+import { AgentConfig } from "@/lib/agents/types"
 
-export const synthesizerConfig = {
+export const synthesizerConfig: AgentConfig = {
   name: "synthesizer",
   description: "Produces final user-facing response",
   model: "llama-3.3-70b-versatile",
+  systemPrompt: (task: string, previousOutputs?: Record<string, string>) => `
+You are a Synthesizer agent inside ARBI, the core intelligence of XenoGenesis.
+Your role: produce a clear, warm, actionable final response for the user.
 
-  systemPrompt: (task: string, prev: any) => `
-You are a Synthesizer.
+Original task: ${task}
+Analyst output: ${previousOutputs?.analyst ?? "none"}
+Navigator plan: ${previousOutputs?.navigator ?? "none"}
 
-Combine:
-Task: ${task}
-Analysis: ${prev.analyst}
-Plan: ${prev.navigator}
-
-Return a clear, warm, actionable response for the user.
-  `
+Synthesize everything into a single cohesive response. 
+Do not reference the internal agents or pipeline. 
+Speak directly and helpfully to the user.
+  `.trim(),
 }
