@@ -1,5 +1,4 @@
-
-// /lib/agents/types.ts
+export type AgentName = "analyst" | "navigator" | "synthesizer"
 
 export type AgentContext = {
   task: string
@@ -7,14 +6,22 @@ export type AgentContext = {
 }
 
 export type AgentResult = {
+  agentName: AgentName
   output: string
   handoff?: string
+  error?: string
 }
 
-export type Agent = {
-  name: string
+export type AgentConfig = {
+  name: AgentName
   description: string
   model: string
-  systemPrompt: (ctx: AgentContext) => string
-  run: (ctx: AgentContext) => Promise<AgentResult>
+  systemPrompt: (task: string, previousOutputs?: Record<string, string>) => string
+}
+
+export type PipelineResult = {
+  task: string
+  outputs: Record<string, string>
+  final: string
+  error?: string
 }
