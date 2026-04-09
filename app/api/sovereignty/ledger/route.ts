@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { getSupabase } from '@/lib/supabase';
 
 export async function GET() {
   try {
-    const supabase = getSupabaseClient();
+    const supabase = getSupabase();
     
     // Fetch actions that haven't been committed to the timeline yet
     const { data, error } = await supabase
