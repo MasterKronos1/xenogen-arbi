@@ -1270,12 +1270,13 @@ Copy the code to run locally.`} : null)
         setActiveConvId(newConvId)
         const firstMsg = newMsgs.find(m=>m.role==='user')
         if (firstMsg) {
-          setConversations(prev => [{
-            id:         newConvId,
-            title:      firstMsg.content.slice(0,60),
-            mode,
-            created_at: new Date().toISOString(),
-          }, ...prev])
+         setConversations(prev => [{
+          id:         newConvId,
+          title:      firstMsg.content.slice(0, 60),
+          mode,
+          user_id:    user?.id ?? '',
+          created_at: new Date().toISOString(),
+        }, ...prev])
         }
       }
 
