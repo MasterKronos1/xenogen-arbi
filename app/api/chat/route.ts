@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
     const queryVector = await generateEmbedding(userMessage);
 
     // 2. QUERY NEURAL VAULT (Supabase RPC)
-    const { data: relevantMemories, error: rpcError } = await supabase.rpc(
+    const { data: relevantMemories, error: rpcError } = await supabase.client.rpc(
       'match_memories',
       {
         query_embedding: queryVector,
