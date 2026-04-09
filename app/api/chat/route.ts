@@ -2,12 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { generateEmbedding } from '@/lib/ai/embeddings';
 import Groq from 'groq-sdk';
 
-const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
-
 export async function POST(req: NextRequest) {
   try {
     const { messages, userEmail } = await req.json();
     const userMessage = messages[messages.length - 1].content;
+    const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
     // 1. GENERATE VECTOR (The line that was failing)
     const queryVector = await generateEmbedding(userMessage);
