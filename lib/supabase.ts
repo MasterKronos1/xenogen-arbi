@@ -11,7 +11,8 @@ export function getSupabase(): SupabaseClient {
   return _client
 }
 
-// Named export for backward compat
 export const supabase = {
   get client() { return getSupabase() }
 }
+
+export const db = getSupabase
