@@ -8,13 +8,9 @@ import {
   User, Globe, BookOpen, ShoppingBag, Briefcase,
   Compass, LogOut, Brain, X, Paperclip, FileText,
 } from 'lucide-react'
-import {
-  getUserConversations, getUserMemory, getOrCreateUser,
-  resolvePathway, getPathwayProgress,
-  type UserProfile, type Memory, type Conversation,
-} from '@/lib/user'
+import { vaultMemory, updateUserProfile } from '@/lib/user'
 import { getUser, signOut } from '@/lib/auth'
-import { getUrlForStage } from '@/lib/ecosystem'
+import { getEcosystemState } from '@/lib/ecosystem'
 import type { User as SupabaseUser } from '@supabase/supabase-js'
 
 // ── ARBI IDENTITY ─────────────────────────────────────────────────
