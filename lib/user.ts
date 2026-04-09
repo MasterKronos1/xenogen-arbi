@@ -34,21 +34,23 @@ async function vaultMemory(userId: string, key: string, value: string) {
 }
 
 
-export async function getOrCreateUser(id: string, email: string) {
+export async function getOrCreateUser(idOrClient: any, userId?: string) {
+  const actualId = userId ?? idOrClient
   const { data, error } = await supabase
     .from('users')
-    .upsert({ id, email }, { onConflict: 'id' })
+    .upsert({ id: actualId }, { onConflict: 'id' })
     .select()
     .single()
   if (error) throw error
   return data
 }
 
-export async function getUserMemory(userId: string) {
+export async function getUserMemory(idOrClient: any, userId?: string) {
+  const actualId = userId ?? idOrClient
   const { data, error } = await supabase
     .from('memories')
     .select('*')
-    .eq('user_id', userId)
+    .eq('user_id', actualId)
     .order('created_at', { ascending: false })
   if (error) throw error
   return data || []
