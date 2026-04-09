@@ -19,6 +19,7 @@ export interface SovereigntyAction {
 export interface UserProfile {
   id: string;
   email: string;
+  name?: string;
   created_at: string;
 }
 
