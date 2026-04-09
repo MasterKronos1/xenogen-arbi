@@ -908,7 +908,7 @@ export default function ARBIProduction() {
       )
 
       if (result.data && result.data.length > 0) {
-        const loaded: Message[] = result.data.map(m => ({
+        const loaded: Message[] = result.data.map((m: any) => ({
           role:    m.role as 'user'|'assistant',
           content: m.content,
           time:    new Date(m.created_at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}),
