@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { generateEmbedding } from '@/lib/ai/embeddings';
 import Groq from 'groq-sdk';
-import { supabase } from '@/lib/supabase'
+import { getSupabase } from '@/lib/supabase'
+const db = getSupabase()
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
@@ -14,7 +15,7 @@ export async function POST(req: NextRequest) {
     const queryVector = await generateEmbedding(userMessage);
 
     // 2. QUERY NEURAL VAULT (Supabase RPC)
-    const { data: relevantMemories, error: rpcError } = await supabase.client.rpc(
+    const { data: relevantMemories, error: rpcError } = await db.rpc(
       'match_memories',
       {
         query_embedding: queryVector,
