@@ -1274,7 +1274,7 @@ Copy the code to run locally.`} : null)
           id:         newConvId,
           title:      firstMsg.content.slice(0, 60),
           mode,
-          user_id:    user?.id ?? '',
+          user_id:    authUser?.id ?? '',
           created_at: new Date().toISOString(),
         }, ...prev])
         }
