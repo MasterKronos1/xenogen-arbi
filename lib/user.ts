@@ -75,6 +75,12 @@ export async function resolvePathway(userId: string) {
   return data
 }
 
+
+export function buildMemoryContext(profile: any, memories: any[]) {
+  const memoryLines = memories.map(m => `${m.key}: ${m.value}`).join('\n')
+  return `User Profile: ${JSON.stringify(profile)}\nMemories:\n${memoryLines}`
+}
+
 export async function getPathwayProgress(userId: string) {
   return resolvePathway(userId)
 }
