@@ -12,6 +12,7 @@ import { vaultMemory, updateUserProfile } from '@/lib/user'
 import { getUser, signOut } from '@/lib/auth'
 import { getEcosystemState } from '@/lib/ecosystem'
 import type { User as SupabaseUser } from '@supabase/supabase-js'
+import type { UserProfile, Memory, Conversation } from '@/lib/core/types'
 
 // ── ARBI IDENTITY ─────────────────────────────────────────────────
 const ARBI_WELCOME_XENO = (name?: string | null) =>
