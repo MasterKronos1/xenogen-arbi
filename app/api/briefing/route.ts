@@ -48,7 +48,7 @@ Planned platforms: ${state.planned_count}
 Storage: ${state.storage_status}
 
 PLATFORMS:
-${state.organizations.map(o => `
+${state.organizations.map((o: any) => `
 ${o.name} [${o.status.toUpperCase()}]
   ${o.description}
   URL: ${o.url || 'not deployed'}
