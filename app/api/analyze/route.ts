@@ -2,7 +2,7 @@ export const runtime = 'nodejs'
 
 import Groq from 'groq-sdk'
 import { createClient } from '@supabase/supabase-js'
-import { vaultMemory } from '@/lib/user'
+import { vaultMemory, getOrCreateUser, getUserMemory } from '@/lib/user'
 import { getEcosystemState, buildARBISystemContext } from '@/lib/ecosystem'
 
 const MODELS = [
