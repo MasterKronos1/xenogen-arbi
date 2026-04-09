@@ -2,8 +2,8 @@ export const runtime = 'nodejs'
 
 import Groq from 'groq-sdk'
 import { createClient } from '@supabase/supabase-js'
-import { getUserMemory, getOrCreateUser, buildMemoryContext } from '@/lib/user'
-import { buildARBISystemContext } from '@/lib/ecosystem'
+import { vaultMemory } from '@/lib/user'
+import { getEcosystemState } from '@/lib/ecosystem'
 
 const MODELS = [
   'llama-3.3-70b-versatile',
