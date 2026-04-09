@@ -3,7 +3,7 @@ export const runtime = 'nodejs'
 import Groq from 'groq-sdk'
 import { createClient } from '@supabase/supabase-js'
 import { vaultMemory } from '@/lib/user'
-import { getEcosystemState } from '@/lib/ecosystem'
+import { getEcosystemState, buildARBISystemContext } from '@/lib/ecosystem'
 
 const MODELS = [
   'llama-3.3-70b-versatile',
