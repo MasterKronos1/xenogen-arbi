@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { getSupabase } from '@/lib/supabase';
 
 export async function POST(req: Request) {
   try {
     const { id } = await req.json();
-    const supabase = getSupabaseClient();
+    const supabase = getSupabase();
 
     // The Unified Signature: Architect + Aethel + Arbi
     // In this phase, we update the Architect Sig and set Committed to True
@@ -20,9 +20,6 @@ export async function POST(req: Request) {
       .single();
 
     if (error) throw error;
-
-    // TODO: Trigger the actual physical/digital action here 
-    // based on the data.payload (e.g., Drone Launch, Database Wipe, etc.)
 
     return NextResponse.json({ status: 'COMMITTED_TO_TIMELINE', action: data });
   } catch (err: any) {
