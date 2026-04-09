@@ -5,6 +5,21 @@ import { supabase } from './supabase';
  * REFACTORED: Now accepts an adapter or defaults to singleton supabase
  * This matches your 'system/route.ts' expectations.
  */
+
+export function buildARBISystemContext(divisions: any[]) {
+  return divisions.map(d =>
+    `[${d.name} | Layer ${d.layer} | ${d.status}]: ${d.url}`
+  ).join('\n')
+}
+
+export function getUrlForStage(stage: string, divisions: any[]) {
+  const match = divisions.find(d => 
+    d.name?.toLowerCase().includes(stage.toLowerCase())
+  )
+  return match?.url || null
+}
+
+
 export async function getEcosystemState(adapter?: any) {
   // If an adapter is passed, we use its client, otherwise the standard supabase client
   const client = adapter?.client || supabase;
