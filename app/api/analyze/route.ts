@@ -188,8 +188,8 @@ export async function POST(req: Request) {
   if (userId !== 'anonymous') {
     try {
       const [profile, memories] = await Promise.all([
-        getOrCreateUser(authSupabase as any, userId),
-        getUserMemory(authSupabase as any, userId),
+        getOrCreateUser(userId, ''),
+        getUserMemory(userId),
       ])
       memoryContext = buildMemoryContext(profile, memories)
 
