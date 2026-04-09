@@ -2,13 +2,14 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
+import { getSupabase } from '@/lib/supabase'
 import {
   Plus, ChevronRight, Send, Menu, Zap,
   MoreHorizontal, ArrowRight, Mic, MicOff,
   User, Globe, BookOpen, ShoppingBag, Briefcase,
   Compass, LogOut, Brain, X, Paperclip, FileText,
 } from 'lucide-react'
-import { vaultMemory, updateUserProfile } from '@/lib/user'
+import { vaultMemory, updateUserProfile, getOrCreateUser, getUserMemory, getUserConversations, buildMemoryContext } from '@/lib/user'
 import { getUser, signOut } from '@/lib/auth'
 import { getEcosystemState } from '@/lib/ecosystem'
 import type { User as SupabaseUser } from '@supabase/supabase-js'
