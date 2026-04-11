@@ -11,7 +11,6 @@ import {
 } from 'lucide-react'
 import { vaultMemory, updateUserProfile, getOrCreateUser, getUserMemory, getUserConversations, buildMemoryContext } from '@/lib/user'
 import { getUser, signOut } from '@/lib/auth'
-import { getEcosystemState } from '@/lib/ecosystem'
 import type { User as SupabaseUser } from '@supabase/supabase-js'
 import type { UserProfile, Memory, Conversation } from '@/lib/core/types'
 import { getEcosystemState, buildARBISystemContext, getUrlForStage } from '@/lib/ecosystem'
