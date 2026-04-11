@@ -1374,7 +1374,11 @@ Copy the code to run locally.`} : null)
 
   // Derived
   const pathway      = PATHWAY_STAGES
-const progress     = profile?.stage || 'groundzero'
+  const progress = {
+    completed: PATHWAY_STAGES.findIndex(s => s.id === (profile?.stage || 'groundzero')),
+    total: PATHWAY_STAGES.length,
+    percent: Math.round((PATHWAY_STAGES.findIndex(s => s.id === (profile?.stage || 'groundzero')) / PATHWAY_STAGES.length) * 100)
+  }
 const currentStage = PATHWAY_STAGES.find(s => s.id === progress)
 const currentUrl   = currentStage ? getUrlForStage(currentStage.id, []) : null
 
