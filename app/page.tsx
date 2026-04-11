@@ -1379,9 +1379,11 @@ Copy the code to run locally.`} : null)
     total: PATHWAY_STAGES.length,
     percent: Math.round((PATHWAY_STAGES.findIndex(s => s.id === (profile?.stage || 'groundzero')) / PATHWAY_STAGES.length) * 100)
   }
-const currentStage = PATHWAY_STAGES.find(s => s.id === progress)
-const currentUrl   = currentStage ? getUrlForStage(currentStage.id, []) : null
 
+  const stageId      = profile?.stage || 'groundzero'
+  const currentStage = PATHWAY_STAGES.find(s => s.id === stageId)
+  const currentUrl   = currentStage ? getUrlForStage(currentStage.id, []) : null
+    
   const presenceLabel  = streaming?'Deeply present':presenceState.breath>0.75?'Fully attentive':'Present and ready'
   const resonanceLabel = streaming?'Thinking clearly':presenceState.resonance>0.7?'Sharp and clear':'Calm and clear'
   const depthLabel     = streaming?'Attuned to you':presenceState.depth>0.65?'Listening deeply':'Open and listening'
