@@ -38,6 +38,14 @@ const SENSING_PHRASES = [
 type Mode    = 'xeno' | 'open' | 'agents'
 type Message = { role: 'user' | 'assistant'; content: string; time?: string; suggestions?: string[] }
 
+const PATHWAY_STAGES = [
+  { id: 'groundzero', label: 'GroundZero', current: false },
+  { id: 'btu',        label: 'BTU',        current: false },
+  { id: 'skills',     label: 'Skills',     current: false },
+  { id: 'guuz',       label: 'Guuz',       current: false },
+  { id: 'career',     label: 'Career',     current: false },
+]
+
 const PLATFORM_LINKS = [
   { label: 'XenoGen Skills',   color: '#00e5ff', url: 'https://xenogen-skills.vercel.app', icon: <BookOpen size={12}/> },
   { label: 'Guuz Marketplace', color: '#f0c040', url: '/guuz',                              icon: <ShoppingBag size={12}/> },
