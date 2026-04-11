@@ -41,10 +41,6 @@ export interface Conversation {
   updated_at?: string;
 }
 
-const progress = {
-  completed: PATHWAY_STAGES.findIndex(s => s.id === (profile?.stage || 'groundzero')),
-  total: PATHWAY_STAGES.length,
-  percent: Math.round((PATHWAY_STAGES.findIndex(s => s.id === (profile?.stage || 'groundzero')) / PATHWAY_STAGES.length) * 100)
-}
+
 
 
