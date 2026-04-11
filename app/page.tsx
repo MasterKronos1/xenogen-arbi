@@ -1373,10 +1373,10 @@ Copy the code to run locally.`} : null)
   }
 
   // Derived
-  const pathway      = resolvePathway(profile?.stage || 'groundzero')
-  const progress     = getPathwayProgress(profile?.stage || 'groundzero')
-  const currentStage = pathway.find(s=>s.current)
-  const currentUrl   = currentStage ? getUrlForStage(currentStage.id) : null
+  const pathway      = PATHWAY_STAGES
+const progress     = profile?.stage || 'groundzero'
+const currentStage = PATHWAY_STAGES.find(s => s.id === progress)
+const currentUrl   = currentStage ? getUrlForStage(currentStage.id, []) : null
 
   const presenceLabel  = streaming?'Deeply present':presenceState.breath>0.75?'Fully attentive':'Present and ready'
   const resonanceLabel = streaming?'Thinking clearly':presenceState.resonance>0.7?'Sharp and clear':'Calm and clear'
