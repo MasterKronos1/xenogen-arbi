@@ -1447,7 +1447,8 @@ Copy the code to run locally.`} : null)
                 {pathway.map((s,i)=>(
                   <div key={s.id} style={{display:'flex',alignItems:'center',flex:1}}>
                     <div className={`pnode ${s.done?'done':''} ${s.current?'current':''}`}
-                      onClick={()=>{const url=getUrlForStage(s.id);if(url)window.open(url,'_blank')}}>
+                      onClick={() => { const url = getUrlForStage(s.id, []); if(url) window.open(url, '_blank') }}>
+                      
                       <div className="pnode-dot"/>
                       <div className="pnode-label">{s.label}</div>
                     </div>
